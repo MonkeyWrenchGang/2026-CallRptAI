@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallRpt AI — Mockup A: Pulse (JH-style)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #ffffff; --bg2: #f7f7f5; --bg3: #f0efe9;
+      --txt: #1a1a18; --txt2: #6b6a64; --txt3: #9c9a92;
+      --border: rgba(0,0,0,0.1); --border2: rgba(0,0,0,0.18);
+      --teal: #1D9E75; --teal-bg: #E1F5EE; --teal-dark: #085041;
+      --radius: 8px;
+    }
+    body { font-family: 'IBM Plex Sans', sans-serif; background: var(--bg3); color: var(--txt); height: 100vh; display: flex; flex-direction: column; overflow: hidden; font-size: 13px; }
+    .topbar { background: var(--bg); border-bottom: 0.5px solid var(--border); display: flex; align-items: center; padding: 0 20px; height: 48px; flex-shrink: 0; }
+    .brand { display: flex; align-items: center; gap: 8px; margin-right: 24px; }
+    .brand-mark { width: 26px; height: 26px; background: #0F6E56; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: white; font-size: 11px; font-weight: 600; }
+    .brand-name { font-size: 13px; font-weight: 500; }
+    .brand-fi { font-size: 11px; color: var(--txt3); padding-left: 8px; border-left: 0.5px solid var(--border); margin-left: 8px; }
+    .topnav { display: flex; height: 100%; flex: 1; gap: 0; }
+    .tnav { padding: 0 14px; font-size: 12px; color: var(--txt2); display: flex; align-items: center; cursor: default; border-bottom: 2px solid transparent; white-space: nowrap; }
+    .tnav.active { color: var(--txt); border-bottom-color: var(--teal); font-weight: 500; }
+    .topright { display: flex; align-items: center; gap: 10px; }
+    .pill { font-size: 10px; padding: 4px 10px; border-radius: 20px; background: var(--teal-bg); color: var(--teal-dark); font-weight: 500; }
+    .avatar { width: 30px; height: 30px; border-radius: 50%; background: var(--teal-bg); color: var(--teal-dark); display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 500; }
+    .body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    .sidebar { width: 200px; flex-shrink: 0; background: var(--bg); border-right: 0.5px solid var(--border); padding: 16px 0; display: flex; flex-direction: column; overflow-y: auto; }
+    .slabel { font-size: 9px; font-weight: 500; color: var(--txt3); letter-spacing: .08em; text-transform: uppercase; padding: 10px 14px 4px; }
+    .sitem { display: flex; align-items: center; gap: 8px; padding: 7px 14px; font-size: 12px; color: var(--txt2); border-left: 2px solid transparent; }
+    .sitem.active { background: var(--teal-bg); color: var(--teal-dark); font-weight: 500; border-left-color: var(--teal); }
+    .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+    .chat-wrap { flex: 1; display: flex; flex-direction: row; min-height: 0; }
+    .chat-col { flex: 1; display: flex; flex-direction: column; min-width: 0; border-right: 0.5px solid var(--border); }
+    .rail { width: 300px; flex-shrink: 0; background: var(--bg2); padding: 16px; overflow-y: auto; }
+    .ph { font-size: 17px; font-weight: 500; margin-bottom: 2px; }
+    .psub { font-size: 11px; color: var(--txt3); margin-bottom: 12px; }
+    .mrow { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin-bottom: 12px; }
+    .mc { background: var(--bg); border: 0.5px solid var(--border); border-radius: var(--radius); padding: 10px; }
+    .mlabel { font-size: 9px; color: var(--txt3); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 4px; }
+    .mval { font-size: 18px; font-weight: 500; font-family: 'IBM Plex Mono', monospace; }
+    .peer-h { font-size: 11px; font-weight: 500; margin-bottom: 8px; }
+    .peer-row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 0.5px solid var(--border); font-size: 11px; }
+    .peer-row:last-child { border-bottom: none; }
+    .pn { color: var(--txt); }
+    .pv { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--txt2); }
+    .messages { flex: 1; overflow-y: auto; padding: 20px 24px; }
+    .msg { display: flex; gap: 10px; margin-bottom: 16px; max-width: 720px; }
+    .msg-av { width: 32px; height: 32px; border-radius: 50%; background: var(--teal-bg); color: var(--teal-dark); display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; }
+    .msg-bubble { background: var(--bg); border: 0.5px solid var(--border); border-radius: 10px; padding: 12px 14px; font-size: 12px; line-height: 1.55; color: var(--txt2); }
+    .msg-bubble strong { color: var(--txt); }
+    .tag { display: inline-block; background: var(--teal-bg); color: #0F6E56; font-size: 9px; padding: 2px 7px; border-radius: 8px; margin-bottom: 8px; }
+    .composer { padding: 14px 24px; border-top: 0.5px solid var(--border); background: var(--bg); }
+    .inp-row { display: flex; gap: 8px; align-items: flex-end; max-width: 720px; }
+    .inp { flex: 1; border: 0.5px solid var(--border2); border-radius: 10px; padding: 10px 12px; font-size: 12px; color: var(--txt3); background: var(--bg); min-height: 44px; }
+    .send { width: 40px; height: 40px; background: var(--teal); border: none; border-radius: 50%; cursor: default; flex-shrink: 0; }
+    .footer-note { font-size: 10px; color: var(--txt3); text-align: center; padding: 8px; border-top: 0.5px solid var(--border); background: var(--bg); flex-shrink: 0; }
+  </style>
+</head>
+<body>
+  <div class="topbar">
+    <div class="brand">
+      <div class="brand-mark">CR</div>
+      <span class="brand-name">CallRpt AI</span>
+      <span class="brand-fi">FFIEC &amp; NCUA</span>
+    </div>
+    <nav class="topnav">
+      <div class="tnav">Overview</div>
+      <div class="tnav active">Ask</div>
+      <div class="tnav">Data</div>
+    </nav>
+    <div class="topright">
+      <span class="pill">Claude AI active</span>
+      <div class="avatar">MA</div>
+    </div>
+  </div>
+  <div class="body">
+    <aside class="sidebar">
+      <div class="slabel">Institutions</div>
+      <div class="sitem">Search…</div>
+      <div class="sitem active">Summit Community Bank</div>
+      <div class="sitem">River Valley CU</div>
+      <div class="slabel">Session</div>
+      <div class="sitem">Saved prompts (future)</div>
+    </aside>
+    <div class="main">
+      <div class="chat-wrap">
+        <div class="chat-col">
+          <div class="messages">
+            <div class="ph">Ask</div>
+            <div class="psub">Market overview · or select an institution for context-aware answers</div>
+            <div class="msg">
+              <div class="msg-av">CR</div>
+              <div>
+                <div class="msg-bubble">
+                  <span class="tag">Sample · FFIEC call report data</span><br>
+                  <strong>ROA</strong> for Summit Community Bank was <strong>1.12%</strong> on the latest filing (2024-12-31), above the peer median in your asset band. <strong>NPL ratio</strong> is 0.84%, with net charge-offs stable quarter-over-quarter. I can break down loan composition or compare to peers—what should we dig into next?
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="composer">
+            <div class="inp-row">
+              <div class="inp">Ask about Summit Community Bank…</div>
+              <div class="send"></div>
+            </div>
+          </div>
+        </div>
+        <aside class="rail" aria-label="Institution overview">
+          <div class="ph">Summit Community Bank</div>
+          <div class="psub">Bank · TX · $842M assets · Q4 2024</div>
+          <div class="mrow">
+            <div class="mc"><div class="mlabel">ROA</div><div class="mval">1.12%</div></div>
+            <div class="mc"><div class="mlabel">NPL ratio</div><div class="mval">0.84%</div></div>
+            <div class="mc"><div class="mlabel">Tier 1</div><div class="mval">12.4%</div></div>
+            <div class="mc"><div class="mlabel">Efficiency</div><div class="mval">58.2%</div></div>
+          </div>
+          <div class="peer-h">Peer snapshot (similar size)</div>
+          <div class="peer-row"><span class="pn">Lone Star State Bank</span><span class="pv">ROA 0.98%</span></div>
+          <div class="peer-row"><span class="pn">Heritage Trust CU</span><span class="pv">ROA 1.05%</span></div>
+        </aside>
+      </div>
+    </div>
+  </div>
+  <div class="footer-note">Mockup A — Pulse / JH-style · Static preview · Not functional</div>
+</body>
+</html>

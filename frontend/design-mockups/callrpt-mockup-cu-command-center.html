@@ -1,0 +1,1946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallRpt AI — CU Command Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0efe9;
+      --surface: #ffffff;
+      --surface-2: #f7f7f5;
+      --border: rgba(0,0,0,0.09);
+      --border-strong: rgba(0,0,0,0.18);
+      --txt: #1a1a18;
+      --muted: #6b6a64;
+      --muted-2: #9c9a92;
+      --teal: #1D9E75;
+      --teal-hover: #178860;
+      --teal-soft: #E1F5EE;
+      --teal-border: #a7e3cf;
+      --teal-dark: #085041;
+      --green: #16a34a;
+      --green-soft: #dcfce7;
+      --amber: #d97706;
+      --amber-soft: #fef3c7;
+      --red: #dc2626;
+      --red-soft: #fee2e2;
+      --blue: #2563eb;
+      --blue-soft: #eff6ff;
+      --orange: #ea580c;
+      --radius: 8px;
+      --radius-sm: 5px;
+      --shadow: 0 1px 3px rgba(0,0,0,0.07);
+      --shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+      --topbar-h: 48px;
+      --sidebar-w: 220px;
+      --rail-w: 360px;
+    }
+    html, body { height: 100%; }
+    body {
+      font-family: 'IBM Plex Sans', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--txt);
+      font-size: 13px;
+      line-height: 1.45;
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+    .app { display: flex; flex-direction: column; height: 100%; }
+
+    /* ── Topbar ── */
+    .topbar {
+      height: var(--topbar-h); flex-shrink: 0;
+      display: flex; align-items: center;
+      padding: 0 16px 0 16px;
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border-strong);
+      gap: 16px;
+    }
+    .brand { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .brand-mark {
+      width: 28px; height: 28px; border-radius: 6px;
+      background: #0F6E56;
+      color: #fff; font-size: 11px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .brand-name { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+    .brand-tag { font-size: 10px; color: var(--muted-2); padding-left: 8px; border-left: 0.5px solid var(--border-strong); margin-left: 6px; }
+
+    .global-nav { display: flex; height: 100%; flex: 1; }
+    .gnav {
+      display: flex; align-items: center; padding: 0 14px;
+      font-size: 12px; font-weight: 500; color: var(--muted);
+      border-bottom: 2px solid transparent; margin-bottom: -0.5px;
+      cursor: pointer; user-select: none; white-space: nowrap;
+      transition: color .12s, border-color .12s;
+    }
+    .gnav:hover { color: var(--txt); }
+    .gnav.active { color: var(--teal-dark); border-bottom-color: var(--teal); font-weight: 600; }
+
+    .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    .search-pill {
+      display: flex; align-items: center; gap: 6px;
+      padding: 5px 10px; border-radius: 999px;
+      background: var(--surface-2); border: 0.5px solid var(--border-strong);
+      font-size: 11px; color: var(--muted-2); min-width: 160px; cursor: default;
+    }
+    .search-pill kbd {
+      font-size: 10px; padding: 1px 4px; border-radius: 3px;
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      font-family: inherit; color: var(--muted);
+    }
+    .icon-btn {
+      width: 32px; height: 32px; border-radius: 6px;
+      border: 0.5px solid var(--border-strong);
+      background: var(--surface); cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--muted); position: relative; font-size: 14px;
+    }
+    .icon-btn:hover { background: var(--surface-2); }
+    .badge-dot {
+      position: absolute; top: 6px; right: 6px;
+      width: 6px; height: 6px; background: var(--red);
+      border-radius: 50%; border: 1.5px solid var(--surface);
+    }
+    .avatar {
+      width: 30px; height: 30px; border-radius: 50%;
+      background: var(--teal-soft); color: var(--teal-dark);
+      font-size: 10px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+      border: 0.5px solid var(--teal-border); cursor: default;
+    }
+
+    /* ── Shell ── */
+    .shell { display: flex; flex: 1; min-height: 0; }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      width: var(--sidebar-w); flex-shrink: 0;
+      background: var(--surface);
+      border-right: 0.5px solid var(--border-strong);
+      display: flex; flex-direction: column;
+    }
+    .sidebar-scroll { flex: 1; overflow-y: auto; padding: 10px 10px 12px; }
+    .seg {
+      display: flex; background: var(--surface-2);
+      padding: 3px; border-radius: var(--radius-sm);
+      margin-bottom: 12px; border: 0.5px solid var(--border-strong);
+    }
+    .seg button {
+      flex: 1; border: none; background: transparent;
+      padding: 6px 8px; font-size: 11px; font-family: inherit;
+      font-weight: 500; border-radius: 4px; color: var(--muted);
+      cursor: pointer; transition: background .1s, color .1s;
+    }
+    .seg button.sel { background: var(--surface); color: var(--txt); box-shadow: var(--shadow); font-weight: 600; }
+
+    .slabel {
+      font-size: 9px; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .07em; color: var(--muted-2); margin: 12px 6px 4px;
+    }
+    .slabel:first-child { margin-top: 0; }
+    .nav-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 7px 8px; border-radius: 6px;
+      font-size: 12px; color: var(--muted); cursor: pointer;
+      margin-bottom: 1px; transition: background .1s;
+    }
+    .nav-item:hover { background: var(--surface-2); color: var(--txt); }
+    .nav-item.on { background: var(--teal-soft); color: var(--teal-dark); font-weight: 600; border-left: 2px solid var(--teal); }
+    .nav-item .meta { font-size: 10px; color: var(--muted-2); margin-left: auto; }
+
+    .saved-row {
+      display: flex; align-items: flex-start; gap: 7px;
+      padding: 7px 8px; border-radius: 6px; cursor: pointer; margin-bottom: 1px;
+    }
+    .saved-row:hover { background: var(--surface-2); }
+    .saved-row .pin { color: var(--amber); font-size: 11px; line-height: 1.3; }
+    .saved-row .t { font-size: 11px; color: var(--txt); font-weight: 500; line-height: 1.3; }
+    .saved-row .d { font-size: 10px; color: var(--muted-2); margin-top: 1px; }
+
+    .sidebar-footer {
+      padding: 10px; border-top: 0.5px solid var(--border-strong);
+      display: flex; align-items: center; gap: 7px;
+      font-size: 10px; color: var(--muted);
+    }
+    .status-led {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--teal); box-shadow: 0 0 0 2.5px var(--teal-soft);
+    }
+
+    /* ── Filter pills row (CU Filters panel) ── */
+    .filter-group { margin-bottom: 12px; }
+    .filter-group label { font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .07em; color: var(--muted-2); display: block; margin-bottom: 5px; padding-left: 6px; }
+    .filter-pills { display: flex; flex-wrap: wrap; gap: 4px; padding: 0 2px; }
+    .fpill {
+      font-size: 10px; padding: 3px 8px; border-radius: 999px;
+      border: 0.5px solid var(--border-strong); background: var(--surface);
+      color: var(--muted); cursor: pointer; font-weight: 500;
+    }
+    .fpill.on { background: var(--teal-soft); border-color: var(--teal-border); color: var(--teal-dark); font-weight: 600; }
+
+    /* ── Center ── */
+    .center { flex: 1; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+
+    .subhdr {
+      padding: 9px 18px;
+      border-bottom: 0.5px solid var(--border-strong);
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      flex-shrink: 0;
+    }
+    .subhdr h1 { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; }
+    .subhdr .ctx { font-size: 11px; color: var(--muted); display: flex; align-items: center; gap: 7px; margin-top: 2px; }
+    .cpill {
+      display: inline-flex; align-items: center; gap: 3px;
+      padding: 2px 7px; border-radius: 4px;
+      font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+    }
+    .cpill.live { background: var(--teal-soft); color: var(--teal-dark); }
+    .cpill.batch { background: var(--surface-2); color: var(--muted); border: 0.5px solid var(--border-strong); }
+    .cpill.compare { background: var(--blue-soft); color: var(--blue); }
+
+    .role-switch { display: flex; gap: 3px; }
+    .role-switch button {
+      padding: 4px 10px; border-radius: 999px; border: 0.5px solid var(--border-strong);
+      background: var(--surface); font-size: 11px; font-family: inherit;
+      color: var(--muted); cursor: pointer; font-weight: 500;
+    }
+    .role-switch button.on { border-color: var(--teal-border); background: var(--teal-soft); color: var(--teal-dark); font-weight: 600; }
+
+    .view-panel { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .view-panel.active { display: flex; }
+    .hidden { display: none !important; }
+
+    /* ── ASK view layout ── */
+    .split { flex: 1; display: flex; min-height: 0; }
+    .chat-pane {
+      flex: 1; min-width: 0; display: flex; flex-direction: column;
+      background: var(--bg); border-right: 0.5px solid var(--border-strong);
+    }
+    .chat-toolbar {
+      padding: 7px 16px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 0.5px solid var(--border-strong);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .chat-toolbar .hint { font-size: 10px; color: var(--muted-2); }
+    .chat-toolbar .actions { display: flex; gap: 5px; }
+    .tb-btn {
+      font-size: 10px; padding: 4px 9px; border-radius: 5px;
+      border: 0.5px solid var(--border-strong); background: var(--surface);
+      font-family: inherit; color: var(--muted); cursor: pointer; font-weight: 500;
+    }
+    .tb-btn:hover { color: var(--txt); }
+
+    .msgs { flex: 1; overflow-y: auto; padding: 18px 18px 20px; }
+    .day-divider {
+      text-align: center; font-size: 10px; color: var(--muted-2);
+      margin: 6px 0 18px; position: relative;
+    }
+    .day-divider span {
+      background: var(--bg); padding: 0 10px; position: relative; z-index: 1;
+    }
+    .day-divider::before {
+      content: ''; position: absolute; left: 0; right: 0; top: 50%;
+      height: 0.5px; background: var(--border-strong);
+    }
+
+    .msg-row { display: flex; gap: 10px; margin-bottom: 16px; max-width: 700px; }
+    .msg-row.user { flex-direction: row-reverse; margin-left: auto; }
+    .msg-av {
+      width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+      font-size: 10px; font-weight: 600;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .msg-row.assistant .msg-av { background: var(--teal-soft); color: var(--teal-dark); border: 0.5px solid var(--teal-border); }
+    .msg-row.user .msg-av { background: var(--surface-2); color: var(--muted); border: 0.5px solid var(--border-strong); }
+    .bubble {
+      border-radius: 12px; padding: 10px 14px;
+      font-size: 12px; line-height: 1.55; max-width: 100%;
+    }
+    .msg-row.assistant .bubble {
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      box-shadow: var(--shadow); border-bottom-left-radius: 3px; color: var(--muted);
+    }
+    .msg-row.user .bubble {
+      background: var(--teal); color: #fff; border-bottom-right-radius: 3px;
+    }
+    .bubble b, .bubble strong { color: var(--txt); font-weight: 600; }
+    .msg-row.user .bubble b, .msg-row.user .bubble strong { color: #fff; }
+
+    .cite {
+      display: inline-flex; align-items: center; gap: 4px;
+      font-size: 9px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em;
+      color: var(--teal); margin-bottom: 7px; font-family: 'IBM Plex Mono', monospace;
+    }
+    .cite::before { content: '◇'; font-size: 7px; opacity: .7; }
+
+    ul.insight { margin: 8px 0 0; padding-left: 16px; }
+    ul.insight li { margin-bottom: 5px; color: var(--muted); font-size: 12px; }
+    ul.insight li strong { color: var(--txt); }
+
+    .follow-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 10px; }
+    .follow-chip {
+      font-size: 11px; padding: 4px 9px; border-radius: 999px;
+      border: 0.5px dashed var(--border-strong); color: var(--teal-dark);
+      cursor: pointer; font-weight: 500; background: transparent;
+      transition: background .1s;
+    }
+    .follow-chip:hover { background: var(--teal-soft); border-color: var(--teal-border); }
+
+    .sql-block { margin-top: 10px; border-radius: 6px; overflow: hidden; border: 0.5px solid var(--border-strong); }
+    .sql-hd {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 6px 9px; background: var(--surface-2);
+      font-size: 10px; font-weight: 600; color: var(--muted);
+    }
+    .sql-hd button { font-size: 10px; border: none; background: none; color: var(--teal); cursor: pointer; font-family: inherit; font-weight: 600; }
+    .sql-body {
+      padding: 9px 10px; font-family: 'IBM Plex Mono', monospace;
+      font-size: 10px; line-height: 1.55; color: var(--txt);
+      background: #f8f9f7; overflow-x: auto; white-space: pre;
+    }
+
+    .composer {
+      padding: 10px 16px 14px;
+      border-top: 0.5px solid var(--border-strong);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .composer-inner { display: flex; gap: 8px; align-items: flex-end; max-width: 700px; }
+    .ta {
+      flex: 1; min-height: 44px; max-height: 110px; resize: none;
+      border: 0.5px solid var(--border-strong); border-radius: 10px;
+      padding: 10px 12px; font-size: 12px; font-family: inherit;
+      color: var(--txt); line-height: 1.45;
+    }
+    .ta:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 2.5px var(--teal-soft); }
+    .ta::placeholder { color: var(--muted-2); }
+    .btn-send {
+      padding: 0 18px; height: 44px; border: none; border-radius: 10px;
+      background: var(--teal); color: #fff; font-weight: 600;
+      font-family: inherit; font-size: 12px; cursor: pointer; flex-shrink: 0;
+    }
+    .btn-send:hover { background: var(--teal-hover); }
+    .composer-foot { font-size: 10px; color: var(--muted-2); margin-top: 6px; max-width: 700px; }
+
+    /* ── Rail ── */
+    .rail {
+      width: var(--rail-w); flex-shrink: 0;
+      background: var(--surface);
+      overflow-y: auto; display: flex; flex-direction: column;
+    }
+    .rail-hd {
+      padding: 12px 14px; border-bottom: 0.5px solid var(--border-strong);
+      position: sticky; top: 0; background: var(--surface); z-index: 2;
+    }
+    .rail-hd h2 { font-size: 13px; font-weight: 600; letter-spacing: -0.01em; }
+    .rail-hd .sub { font-size: 10px; color: var(--muted); margin-top: 3px; line-height: 1.4; }
+    .rail-actions { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .rail-actions button {
+      font-size: 10px; padding: 4px 9px; border-radius: 5px;
+      border: 0.5px solid var(--border-strong); background: var(--surface);
+      font-family: inherit; font-weight: 500; color: var(--muted); cursor: pointer;
+    }
+    .rail-actions button.primary { background: var(--teal); border-color: var(--teal); color: #fff; }
+    .rail-actions button.primary:hover { background: var(--teal-hover); }
+    .rail-body { padding: 10px 12px 20px; }
+
+    .card {
+      background: var(--surface-2); border: 0.5px solid var(--border-strong);
+      border-radius: var(--radius); padding: 11px; margin-bottom: 9px;
+    }
+    .card h3 {
+      font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted-2); font-weight: 700; margin-bottom: 9px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .card h3 a { font-size: 9px; text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--teal); text-decoration: none; }
+
+    .freshness {
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 10px; color: var(--muted);
+      margin-bottom: 9px; padding-bottom: 9px; border-bottom: 0.5px dashed var(--border-strong);
+    }
+    .freshness strong { color: var(--txt); }
+
+    .kpi-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .kpi {
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      border-radius: 6px; padding: 8px;
+    }
+    .kpi .lbl { font-size: 8px; color: var(--muted-2); text-transform: uppercase; letter-spacing: .04em; font-weight: 600; }
+    .kpi .val { font-size: 16px; font-weight: 500; color: var(--txt); margin-top: 3px; font-family: 'IBM Plex Mono', monospace; }
+    .kpi .delta { font-size: 9px; margin-top: 2px; }
+    .delta.up { color: var(--green); }
+    .delta.dn { color: var(--red); }
+    .delta.neu { color: var(--muted-2); }
+
+    /* SVG Sparklines */
+    .spark-wrap { margin-top: 9px; }
+    .spark-label { font-size: 9px; color: var(--muted); margin-bottom: 5px; }
+    .sparkline { width: 100%; height: 40px; overflow: visible; }
+    .sparkline .line { fill: none; stroke: var(--teal); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+    .sparkline .area { fill: var(--teal); opacity: 0.07; }
+    .sparkline .dot { fill: var(--teal); }
+    .sparkline .dot-ghost { fill: none; stroke: var(--teal); stroke-width: 1.5; }
+    .qtr-row {
+      display: flex; gap: 2px; margin-top: 4px;
+      font-size: 8px; color: var(--muted-2); font-family: 'IBM Plex Mono', monospace;
+    }
+    .qtr-row span { flex: 1; text-align: center; }
+
+    /* Mini sparkline (compare cells) */
+    .mini-spark { width: 72px; height: 22px; overflow: visible; }
+    .mini-spark .line { fill: none; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+
+    .bench {
+      display: flex; align-items: center; gap: 9px;
+      padding: 9px; background: var(--surface); border-radius: 6px;
+      border: 0.5px solid var(--border-strong); margin-top: 7px;
+    }
+    .bench .pct { font-size: 20px; font-weight: 600; color: var(--teal); font-family: 'IBM Plex Mono', monospace; }
+    .bench .txt { font-size: 10px; color: var(--muted); line-height: 1.4; }
+
+    table.data { width: 100%; font-size: 11px; border-collapse: collapse; }
+    table.data th { text-align: left; color: var(--muted-2); font-weight: 600; padding: 5px 3px; border-bottom: 0.5px solid var(--border-strong); font-size: 10px; }
+    table.data td { padding: 7px 3px; border-bottom: 0.5px solid var(--border-strong); color: var(--muted); }
+    table.data tr:last-child td { border-bottom: none; }
+    table.data td.mono { font-family: 'IBM Plex Mono', monospace; text-align: right; color: var(--txt); }
+    table.data tr.hl td { background: var(--teal-soft); color: var(--teal-dark); font-weight: 600; }
+    table.data .rank { color: var(--muted-2); font-size: 10px; width: 20px; }
+
+    .alert-item {
+      display: flex; gap: 9px; padding: 9px; border-radius: 6px;
+      border: 0.5px solid var(--border-strong); margin-bottom: 7px; background: var(--surface);
+    }
+    .alert-item:last-child { margin-bottom: 0; }
+    .alert-item .dot { width: 7px; height: 7px; border-radius: 50%; margin-top: 4px; flex-shrink: 0; }
+    .alert-item .dot.amber { background: var(--amber); }
+    .alert-item .dot.green { background: var(--green); }
+    .alert-item .dot.red { background: var(--red); }
+    .alert-item .t { font-size: 11px; font-weight: 600; color: var(--txt); }
+    .alert-item .d { font-size: 10px; color: var(--muted); margin-top: 2px; line-height: 1.35; }
+
+    .chips { display: flex; flex-wrap: wrap; gap: 5px; }
+    .chip {
+      font-size: 10px; padding: 5px 9px; border-radius: 999px;
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      color: var(--muted); cursor: pointer; font-weight: 500;
+    }
+    .chip:hover { border-color: var(--teal-border); color: var(--teal-dark); background: var(--teal-soft); }
+
+    /* ── COMPARE VIEW ── */
+    .compare-wrap {
+      flex: 1; overflow-y: auto; display: flex; flex-direction: column; min-height: 0;
+    }
+    .compare-hdr {
+      padding: 12px 18px 10px; border-bottom: 0.5px solid var(--border-strong);
+      background: var(--surface); flex-shrink: 0;
+    }
+    .compare-hdr h2 { font-size: 13px; font-weight: 600; margin-bottom: 6px; letter-spacing: -0.01em; }
+    .inst-picker { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+    .inst-chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 4px 10px; border-radius: 999px;
+      font-size: 11px; font-weight: 600;
+      border: 1px solid; cursor: default;
+    }
+    .inst-chip.cu1 { background: var(--teal-soft); border-color: var(--teal-border); color: var(--teal-dark); }
+    .inst-chip.cu2 { background: var(--blue-soft); border-color: #bfdbfe; color: var(--blue); }
+    .inst-chip.cu3 { background: #fff7ed; border-color: #fed7aa; color: var(--orange); }
+    .inst-chip .rm { font-size: 13px; line-height: 1; cursor: pointer; opacity: .6; }
+    .inst-chip .rm:hover { opacity: 1; }
+    .add-inst {
+      font-size: 11px; padding: 4px 10px; border-radius: 999px;
+      border: 0.5px dashed var(--border-strong); background: transparent;
+      color: var(--muted); cursor: pointer; font-weight: 500; font-family: inherit;
+    }
+    .add-inst:hover { border-color: var(--teal); color: var(--teal-dark); }
+
+    .compare-trend {
+      padding: 14px 18px 0;
+      background: var(--surface); border-bottom: 0.5px solid var(--border-strong);
+      flex-shrink: 0;
+    }
+    .compare-trend h3 {
+      font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted-2); margin-bottom: 10px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .metric-tabs { display: flex; gap: 2px; margin-bottom: 10px; }
+    .mtab {
+      font-size: 10px; padding: 3px 9px; border-radius: 4px;
+      border: 0.5px solid transparent; background: transparent;
+      color: var(--muted); cursor: pointer; font-family: inherit; font-weight: 500;
+    }
+    .mtab.on { background: var(--teal-soft); border-color: var(--teal-border); color: var(--teal-dark); font-weight: 600; }
+    .mtab:hover:not(.on) { background: var(--surface-2); }
+    .trend-chart-wrap { position: relative; }
+    .trend-svg { width: 100%; height: 80px; overflow: visible; }
+    .trend-legend {
+      display: flex; gap: 14px; margin-top: 4px; padding-bottom: 12px;
+      font-size: 10px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; color: var(--muted); }
+    .legend-dot { width: 10px; height: 3px; border-radius: 2px; flex-shrink: 0; }
+    .qtr-axis {
+      display: flex; padding: 0 0 10px;
+      font-size: 8px; color: var(--muted-2); font-family: 'IBM Plex Mono', monospace;
+    }
+    .qtr-axis span { flex: 1; text-align: center; }
+
+    .compare-body { flex: 1; overflow-y: auto; padding: 14px 18px 24px; }
+    .compare-table-wrap { overflow-x: auto; }
+    .compare-table {
+      width: 100%; border-collapse: separate; border-spacing: 0;
+      font-size: 12px; min-width: 600px;
+    }
+    .compare-table th {
+      padding: 10px 12px; text-align: left;
+      border-bottom: 0.5px solid var(--border-strong);
+      background: var(--surface); font-weight: 600;
+      position: sticky; top: 0; z-index: 1;
+    }
+    .compare-table th.metric-col {
+      width: 160px; font-size: 9px; text-transform: uppercase;
+      letter-spacing: .06em; color: var(--muted-2); font-weight: 700;
+    }
+    .compare-table th.cu-col { min-width: 180px; }
+    .cu-col-hd { }
+    .cu-col-hd .cu-name { font-size: 12px; font-weight: 600; }
+    .cu-col-hd .cu-meta { font-size: 10px; color: var(--muted); margin-top: 1px; font-weight: 400; }
+    .cu-col-hd.cu1 .cu-name { color: var(--teal-dark); }
+    .cu-col-hd.cu2 .cu-name { color: var(--blue); }
+    .cu-col-hd.cu3 .cu-name { color: var(--orange); }
+
+    .compare-table td {
+      padding: 10px 12px; border-bottom: 0.5px solid var(--border-strong);
+      vertical-align: top;
+    }
+    .compare-table td.metric-label {
+      font-size: 11px; font-weight: 600; color: var(--txt);
+      background: var(--surface-2);
+    }
+    .compare-table td.metric-label .metric-sub {
+      font-size: 9px; color: var(--muted-2); font-weight: 400; margin-top: 2px;
+    }
+    .compare-table tr:last-child td { border-bottom: none; }
+
+    .cell-val { font-size: 17px; font-weight: 500; font-family: 'IBM Plex Mono', monospace; }
+    .cell-delta { font-size: 10px; margin-top: 2px; }
+    .cell-spark { margin-top: 5px; }
+    .pctile-bar-wrap { margin-top: 5px; }
+    .pctile-bar {
+      height: 3px; background: var(--border-strong); border-radius: 2px; overflow: hidden;
+    }
+    .pctile-fill { height: 100%; border-radius: 2px; }
+    .pctile-fill.cu1 { background: var(--teal); }
+    .pctile-fill.cu2 { background: var(--blue); }
+    .pctile-fill.cu3 { background: var(--orange); }
+    .pctile-label { font-size: 9px; color: var(--muted-2); margin-top: 2px; }
+
+    .camel-badge {
+      display: inline-block; font-size: 9px; font-weight: 600;
+      padding: 1px 6px; border-radius: 3px; margin-top: 3px;
+    }
+    .camel-badge.well { background: var(--green-soft); color: var(--green); }
+    .camel-badge.adequate { background: var(--amber-soft); color: var(--amber); }
+    .camel-badge.under { background: var(--red-soft); color: var(--red); }
+
+    .compare-footer {
+      padding: 12px 18px; border-top: 0.5px solid var(--border-strong);
+      background: var(--surface); display: flex; align-items: center;
+      justify-content: space-between; flex-shrink: 0;
+    }
+    .compare-footer .note { font-size: 10px; color: var(--muted-2); }
+    .compare-footer .actions { display: flex; gap: 8px; }
+    .btn-explain {
+      padding: 8px 16px; border-radius: 6px; border: none;
+      background: var(--teal); color: #fff; font-weight: 600;
+      font-family: inherit; font-size: 12px; cursor: pointer;
+    }
+    .btn-explain:hover { background: var(--teal-hover); }
+    .btn-secondary {
+      padding: 8px 14px; border-radius: 6px;
+      border: 0.5px solid var(--border-strong); background: var(--surface);
+      font-family: inherit; font-size: 12px; color: var(--muted);
+      cursor: pointer; font-weight: 500;
+    }
+    .btn-secondary:hover { color: var(--txt); }
+
+    /* ── PULSE VIEW ── */
+    .pulse-wrap { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+    .pulse-filter-bar {
+      padding: 9px 18px; border-bottom: 0.5px solid var(--border-strong);
+      background: var(--surface); flex-shrink: 0;
+      display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+    }
+    .pulse-filter-bar label { font-size: 10px; color: var(--muted); font-weight: 600; margin-right: 2px; }
+    .filter-sel {
+      font-size: 10px; padding: 3px 8px; border-radius: 4px;
+      border: 0.5px solid var(--border-strong); background: var(--surface);
+      font-family: inherit; color: var(--muted); cursor: pointer;
+    }
+    .pulse-divider { width: 1px; height: 18px; background: var(--border-strong); margin: 0 2px; }
+
+    .pulse-grid {
+      flex: 1; padding: 16px 18px;
+      display: grid; grid-template-columns: repeat(12, 1fr);
+      gap: 10px; align-content: start;
+    }
+    .pg-card {
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      border-radius: var(--radius); padding: 13px; box-shadow: var(--shadow);
+    }
+    .pg-card.span-3 { grid-column: span 3; }
+    .pg-card.span-4 { grid-column: span 4; }
+    .pg-card.span-6 { grid-column: span 6; }
+    .pg-card.span-8 { grid-column: span 8; }
+    .pg-card.span-12 { grid-column: span 12; }
+    .pg-card h4 {
+      font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+      color: var(--muted-2); margin-bottom: 10px; font-weight: 700;
+    }
+    .big-stat { font-size: 26px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; letter-spacing: -0.02em; }
+    .big-stat .unit { font-size: 13px; font-weight: 500; color: var(--muted); }
+    .big-stat-sub { font-size: 11px; color: var(--muted); margin-top: 5px; }
+
+    .dist-bar-wrap { display: flex; flex-direction: column; gap: 5px; }
+    .dist-row { display: flex; align-items: center; gap: 8px; }
+    .dist-label { font-size: 10px; color: var(--muted); width: 44px; text-align: right; font-family: 'IBM Plex Mono', monospace; flex-shrink: 0; }
+    .dist-bar { flex: 1; height: 14px; border-radius: 2px; position: relative; background: var(--surface-2); overflow: hidden; }
+    .dist-fill { height: 100%; border-radius: 2px; }
+    .dist-pct { font-size: 9px; color: var(--muted); width: 28px; flex-shrink: 0; }
+
+    .pulse-row-clickable { cursor: pointer; }
+    .pulse-row-clickable:hover td { background: var(--teal-soft); }
+
+    /* ── LIBRARY VIEW ── */
+    .library-grid {
+      flex: 1; overflow-y: auto; padding: 16px 18px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      align-content: start;
+    }
+    .lib-card {
+      background: var(--surface); border: 0.5px solid var(--border-strong);
+      border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow);
+    }
+    .lib-card.span-3 { grid-column: span 3; }
+    .lib-card h4 { font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted-2); margin-bottom: 10px; }
+    .lib-item {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 8px 0; border-bottom: 0.5px solid var(--border-strong);
+    }
+    .lib-item:last-child { border-bottom: none; }
+    .lib-item .icon { font-size: 14px; line-height: 1; margin-top: 1px; }
+    .lib-item .t { font-size: 11px; font-weight: 600; color: var(--txt); }
+    .lib-item .d { font-size: 10px; color: var(--muted); margin-top: 2px; }
+    .lib-item .tag {
+      font-size: 9px; padding: 1px 6px; border-radius: 3px;
+      background: var(--teal-soft); color: var(--teal-dark); font-weight: 600;
+      margin-left: auto; flex-shrink: 0;
+    }
+
+    /* ── Footer ── */
+    .foot {
+      font-size: 10px; color: var(--muted-2); text-align: center;
+      padding: 6px; border-top: 0.5px solid var(--border-strong);
+      background: var(--surface); flex-shrink: 0;
+    }
+
+    @media (max-width: 1200px) {
+      .pg-card.span-3, .pg-card.span-4, .pg-card.span-6, .pg-card.span-8 { grid-column: span 12; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ── TOPBAR ── -->
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">CR</div>
+      <span class="brand-name">CallRpt AI</span>
+      <span class="brand-tag">NCUA 5300 · CU Intelligence</span>
+    </div>
+    <nav class="global-nav" aria-label="Primary">
+      <div class="gnav active" data-view="ask">Ask</div>
+      <div class="gnav" data-view="compare">Compare</div>
+      <div class="gnav" data-view="pulse">Pulse</div>
+      <div class="gnav" data-view="library">Library</div>
+    </nav>
+    <div class="topbar-right">
+      <div class="search-pill">
+        <span style="opacity:.5">⌕</span> Search CUs… <kbd>⌘K</kbd>
+      </div>
+      <button type="button" class="icon-btn" aria-label="Alerts">
+        🔔<span class="badge-dot"></span>
+      </button>
+      <div class="avatar">MA</div>
+    </div>
+  </header>
+
+  <div class="shell">
+
+    <!-- ── SIDEBAR ── -->
+    <aside class="sidebar" aria-label="Workspace">
+      <div class="sidebar-scroll">
+        <div class="seg" role="tablist">
+          <button type="button" class="sel" id="seg-inst">Institution</button>
+          <button type="button" id="seg-filter">CU Filters</button>
+        </div>
+
+        <!-- Institution panel -->
+        <div id="sidebar-inst">
+          <div class="slabel">Active</div>
+          <div class="nav-item on" data-cu="river-valley">
+            <svg width="13" height="13" viewBox="0 0 13 13" fill="none"><rect x="1" y="2" width="11" height="9" rx="1" stroke="currentColor" stroke-width="1.1"/><path d="M4 6h5M4 8.5h3" stroke="currentColor" stroke-width="1.1"/></svg>
+            River Valley FCU
+            <span class="meta">OH</span>
+          </div>
+          <div class="slabel">Recent</div>
+          <div class="nav-item" data-cu="coastal">Coastal Members CU<span class="meta">FL</span></div>
+          <div class="nav-item" data-cu="blue-ridge">Blue Ridge Community CU<span class="meta">VA</span></div>
+          <div class="nav-item">Lakeside Municipal CU<span class="meta">MN</span></div>
+          <div class="slabel">Saved &amp; Pinned</div>
+          <div class="saved-row">
+            <span class="pin">📌</span>
+            <div>
+              <div class="t">Q1 exam prep — River Valley</div>
+              <div class="d">PDF · Mar 15, 2026</div>
+            </div>
+          </div>
+          <div class="saved-row">
+            <span class="pin">📌</span>
+            <div>
+              <div class="t">Peer cohort: OH FCUs $200M–$600M</div>
+              <div class="d">Saved view · 18 CUs</div>
+            </div>
+          </div>
+          <div class="slabel">Collections</div>
+          <div class="nav-item">CAMEL watchlist (4)</div>
+          <div class="nav-item">NCUA exam prep 2026</div>
+          <div class="nav-item">M&amp;A targets — Midwest</div>
+        </div>
+
+        <!-- CU Filters panel -->
+        <div id="sidebar-filter" class="hidden">
+          <div class="filter-group">
+            <label>Asset Band</label>
+            <div class="filter-pills">
+              <span class="fpill on">All sizes</span>
+              <span class="fpill">Under $100M</span>
+              <span class="fpill">$100M–$500M</span>
+              <span class="fpill">$500M–$2B</span>
+              <span class="fpill">Over $2B</span>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Charter Type</label>
+            <div class="filter-pills">
+              <span class="fpill on">All</span>
+              <span class="fpill">Federal CU</span>
+              <span class="fpill">State-chartered</span>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>Field of Membership</label>
+            <div class="filter-pills">
+              <span class="fpill on">All FOM</span>
+              <span class="fpill">Community</span>
+              <span class="fpill">SEG-based</span>
+              <span class="fpill">Associational</span>
+              <span class="fpill">Multiple</span>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>State</label>
+            <div class="filter-pills">
+              <span class="fpill on">National</span>
+              <span class="fpill">OH</span>
+              <span class="fpill">FL</span>
+              <span class="fpill">VA</span>
+              <span class="fpill">TX</span>
+              <span class="fpill">CA</span>
+            </div>
+          </div>
+          <div class="filter-group">
+            <label>CAMEL Rating</label>
+            <div class="filter-pills">
+              <span class="fpill on">All</span>
+              <span class="fpill">1–2</span>
+              <span class="fpill">3</span>
+              <span class="fpill">4–5</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-footer">
+        <span class="status-led"></span>
+        <span>Claude AI · NCUA 5300 · read-only</span>
+      </div>
+    </aside>
+
+    <!-- ── CENTER ── -->
+    <div class="center">
+
+      <!-- Subheader -->
+      <div class="subhdr">
+        <div>
+          <h1 id="view-title">Ask</h1>
+          <div class="ctx">
+            <span class="cpill live" id="ctx-pill">Live context</span>
+            <span id="ctx-detail">River Valley FCU · NCUA #12345 · Federal · OH · $420M assets</span>
+          </div>
+        </div>
+        <div class="role-switch">
+          <button type="button" class="on">CFO</button>
+          <button type="button">Examiner</button>
+          <button type="button">Analyst</button>
+        </div>
+      </div>
+
+      <!-- ══════════ ASK VIEW ══════════ -->
+      <div id="view-ask" class="view-panel active">
+        <div class="split">
+
+          <!-- Chat pane -->
+          <div class="chat-pane">
+            <div class="chat-toolbar">
+              <span class="hint">Answers cite NCUA 5300 schedules · SQL is optional &amp; read-only</span>
+              <div class="actions">
+                <button type="button" class="tb-btn">Pin thread</button>
+                <button type="button" class="tb-btn">Export chat</button>
+              </div>
+            </div>
+
+            <div class="msgs" id="ask-msgs">
+              <div class="day-divider"><span>Today · River Valley FCU in context</span></div>
+
+              <div class="msg-row user">
+                <div class="msg-av">MA</div>
+                <div class="bubble">
+                  How are our net worth ratio and delinquency trending over the past 8 quarters, and how do we stack up against peer FCUs in our asset band?
+                </div>
+              </div>
+
+              <div class="msg-row assistant">
+                <div class="msg-av">CR</div>
+                <div>
+                  <div class="bubble">
+                    <div class="cite">Answer · 5300 Schedule A + SI · Q4 2024</div>
+                    <p style="margin-bottom:9px"><b>Net worth is on a steady climb</b> — up from 9.1% in Q1 2023 to <b>9.8%</b> now, comfortably above the 7% "adequately capitalized" threshold. <b>Delinquency has improved</b> from 1.10% to <b>0.85%</b>, below the peer median of 1.04%. Both trends are board-presentable.</p>
+                    <ul class="insight">
+                      <li><strong>Net Worth Ratio 9.8%</strong> — approaching "well capitalized" (≥10%). Up 70 bps over 8 quarters.</li>
+                      <li><strong>Delinquency 0.85%</strong> — declining trend; 47th percentile vs. OH FCUs $200M–$600M (lower is better).</li>
+                      <li><strong>Loan-to-share 84%</strong> — elevated vs. peer median 76%; monitor liquidity buffer.</li>
+                    </ul>
+                    <div class="follow-chips">
+                      <span class="follow-chip" data-prompt="Show me the 8-quarter net worth ratio trend and compare to our peer cohort">8Q NWR trend vs peers</span>
+                      <span class="follow-chip" data-prompt="Break down what's driving the delinquency improvement — is it loan mix or workout activity?">Delinquency drivers</span>
+                      <span class="follow-chip" data-prompt="Generate a board one-pager on capital and asset quality for River Valley FCU">Board one-pager</span>
+                    </div>
+                  </div>
+                  <div class="bubble" style="margin-top:10px">
+                    <div class="cite">Optional · Generated SQL (read-only)</div>
+                    <div class="sql-block">
+                      <div class="sql-hd">
+                        <span>NWR + delinquency trend · River Valley FCU</span>
+                        <button type="button">Copy</button>
+                      </div>
+                      <div class="sql-body">SELECT q.label, f.net_worth_ratio, f.delinquency_rate,
+       f.loan_to_share_ratio
+FROM financial_data f
+JOIN quarters q ON q.id = f.quarter_id
+JOIN institutions i ON i.id = f.institution_id
+WHERE i.ncua_charter = '12345'
+  AND q.label >= '2023-Q1'
+ORDER BY q.sort_order ASC;</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="msg-row user">
+                <div class="msg-av">MA</div>
+                <div class="bubble">What's behind the loan-to-share ratio being elevated — is it member lending growth or share runoff?</div>
+              </div>
+
+              <div class="msg-row assistant">
+                <div class="msg-av">CR</div>
+                <div class="bubble">
+                  <div class="cite">Answer · 5300 Schedules A + B · linked quarters</div>
+                  <p><b>Primarily member lending growth, not share runoff.</b> Total shares grew ~4.1% YoY (healthy), but the loan portfolio grew ~9.8% — driven by a <b>23% surge in auto loans</b> and <b>11% growth in real estate loans</b>. Share growth has been adequate but lending is outpacing it. This is a common pattern in rate-rise cycles where members seek term loans to lock in before further hikes. Watch the <b>liquidity coverage ratio</b> and contingency funding plan — the trend is manageable now but worth flagging in your ALM narrative.</p>
+                  <div class="follow-chips">
+                    <span class="follow-chip" data-prompt="Compare our loan-to-share ratio to peers over the past 4 quarters">Compare LTS to peers</span>
+                    <span class="follow-chip" data-prompt="Analyze our ALM position and liquidity risk given current loan-to-share trajectory">ALM &amp; liquidity risk</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="composer">
+              <div class="composer-inner">
+                <textarea class="ta" id="ask-textarea" placeholder="Ask about River Valley FCU — trends, peer benchmarks, capital, asset quality, or generate a board summary…" rows="2"></textarea>
+                <button type="button" class="btn-send">Send</button>
+              </div>
+              <p class="composer-foot">
+                Prototype · Not financial advice · NCUA 5300 data · PII-safe answers · Scheduled digests &amp; alerts are roadmap items
+              </p>
+            </div>
+          </div>
+
+          <!-- Context Rail -->
+          <aside class="rail" aria-label="Institution context">
+            <div class="rail-hd">
+              <h2 id="rail-cu-name">River Valley FCU</h2>
+              <p class="sub" id="rail-cu-sub">Federal CU · OH · NCUA #12345 · $420M assets · 42,800 members</p>
+              <div class="rail-actions">
+                <button type="button" class="primary">Export PDF</button>
+                <button type="button">Share view</button>
+                <button type="button">Watchlist</button>
+              </div>
+            </div>
+            <div class="rail-body">
+
+              <!-- Data freshness + KPIs -->
+              <div class="card">
+                <h3>Data freshness <a href="#">Lineage</a></h3>
+                <div class="freshness">
+                  <span><strong>Q4 2024</strong> 5300 report</span>
+                  <span>Filed Jan 28, 2025</span>
+                </div>
+                <div class="kpi-grid">
+                  <div class="kpi">
+                    <div class="lbl">ROA</div>
+                    <div class="val">0.75%</div>
+                    <div class="delta up">▲ 4 bps vs Q3</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="lbl">Net Worth Ratio</div>
+                    <div class="val">9.8%</div>
+                    <div class="delta up">▲ 10 bps vs Q3</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="lbl">Delinquency</div>
+                    <div class="val">0.85%</div>
+                    <div class="delta up">▼ 5 bps vs Q3 ✓</div>
+                  </div>
+                  <div class="kpi">
+                    <div class="lbl">Loan-to-Share</div>
+                    <div class="val">84%</div>
+                    <div class="delta dn">▲ 2 pts vs Q3</div>
+                  </div>
+                </div>
+                <!-- 8Q ROA sparkline -->
+                <div class="spark-wrap">
+                  <div class="spark-label">ROA — last 8 quarters</div>
+                  <svg class="sparkline" viewBox="0 0 160 40" preserveAspectRatio="none">
+                    <defs>
+                      <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stop-color="#1D9E75" stop-opacity="0.15"/>
+                        <stop offset="100%" stop-color="#1D9E75" stop-opacity="0"/>
+                      </linearGradient>
+                    </defs>
+                    <polygon class="area" points="0,36 23,32 46,27 69,23 91,17 114,13 137,10 160,4 160,40 0,40" fill="url(#sparkGrad)"/>
+                    <polyline class="line" points="0,36 23,32 46,27 69,23 91,17 114,13 137,10 160,4"/>
+                    <circle class="dot" cx="160" cy="4" r="2.5"/>
+                    <circle class="dot-ghost" cx="0" cy="36" r="2"/>
+                  </svg>
+                  <div class="qtr-row">
+                    <span>Q1'23</span><span></span><span></span><span></span><span></span><span></span><span></span><span>Q4'24</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Peer rank -->
+              <div class="card">
+                <h3>Peer rank · NWR <a href="#">Cohort (18)</a></h3>
+                <div class="bench">
+                  <div class="pct">72nd</div>
+                  <div class="txt"><strong>Percentile</strong> vs. OH Federal CUs, $200M–$600M assets (peer-matched, Q4 2024)</div>
+                </div>
+                <table class="data" style="margin-top:9px">
+                  <thead>
+                    <tr><th></th><th>Credit Union</th><th style="text-align:right">NWR</th><th style="text-align:right">ROA</th></tr>
+                  </thead>
+                  <tbody>
+                    <tr class="hl"><td class="rank">—</td><td>River Valley FCU</td><td class="mono">9.8%</td><td class="mono">0.75%</td></tr>
+                    <tr><td class="rank">1</td><td>Buckeye Comm. CU</td><td class="mono">10.4%</td><td class="mono">0.82%</td></tr>
+                    <tr><td class="rank">2</td><td>Erie Shores FCU</td><td class="mono">10.1%</td><td class="mono">0.78%</td></tr>
+                    <tr><td class="rank">3</td><td>Mahoning Valley CU</td><td class="mono">9.5%</td><td class="mono">0.71%</td></tr>
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Watchlist -->
+              <div class="card">
+                <h3>Watchlist &amp; thresholds <a href="#">Manage</a></h3>
+                <div class="alert-item">
+                  <span class="dot amber"></span>
+                  <div>
+                    <div class="t">Loan-to-share elevated</div>
+                    <div class="d">84% vs. soft threshold 80%. Not a regulatory trigger but warrants ALM narrative in upcoming exam cycle.</div>
+                  </div>
+                </div>
+                <div class="alert-item">
+                  <span class="dot amber"></span>
+                  <div>
+                    <div class="t">NWR approaching well-capitalized</div>
+                    <div class="d">At 9.8% — 20 bps from ≥10% threshold. On current trajectory, likely Q2 2025.</div>
+                  </div>
+                </div>
+                <div class="alert-item">
+                  <span class="dot green"></span>
+                  <div>
+                    <div class="t">Delinquency declining</div>
+                    <div class="d">4th consecutive quarter of improvement. Below peer median 1.04%.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Quick prompts -->
+              <div class="card">
+                <h3>Quick prompts</h3>
+                <div class="chips">
+                  <span class="chip" data-prompt="Show 8-quarter net worth ratio trend for River Valley FCU">8Q NWR trend</span>
+                  <span class="chip" data-prompt="Compare member growth to peers">Member growth</span>
+                  <span class="chip" data-prompt="Analyze loan-to-share and liquidity risk">Loan-to-share analysis</span>
+                  <span class="chip" data-prompt="What is our CAMEL rating outlook?">CAMEL outlook</span>
+                  <span class="chip" data-prompt="Generate board memo on Q4 2024 financial performance">Board memo Q4</span>
+                  <span class="chip" data-prompt="Stress test: what happens if delinquency rises 50 bps?">Delinquency stress test</span>
+                </div>
+              </div>
+
+              <!-- Compare shortcut -->
+              <div class="card">
+                <h3>Compare with peers</h3>
+                <p style="font-size:11px;color:var(--muted);line-height:1.5;margin-bottom:9px">River Valley FCU is pre-loaded in Compare view alongside Coastal Members CU and Blue Ridge Community CU.</p>
+                <button type="button" class="btn-explain" style="width:100%;font-size:11px;padding:7px" data-switch="compare">Open Compare →</button>
+              </div>
+
+            </div>
+          </aside>
+        </div>
+      </div>
+
+      <!-- ══════════ COMPARE VIEW ══════════ -->
+      <div id="view-compare" class="view-panel">
+        <div class="compare-wrap">
+
+          <!-- Institution picker -->
+          <div class="compare-hdr">
+            <h2>Compare credit unions</h2>
+            <div class="inst-picker">
+              <span class="inst-chip cu1">River Valley FCU <span class="rm" data-col="cu1">×</span></span>
+              <span class="inst-chip cu2">Coastal Members CU <span class="rm" data-col="cu2">×</span></span>
+              <span class="inst-chip cu3">Blue Ridge Community CU <span class="rm" data-col="cu3">×</span></span>
+              <button type="button" class="add-inst">+ Add CU</button>
+            </div>
+          </div>
+
+          <!-- Multi-line trend chart -->
+          <div class="compare-trend">
+            <h3>
+              8-Quarter trend comparison
+              <span style="font-size:9px;color:var(--muted-2);font-weight:400;text-transform:none;letter-spacing:0">Q1 2023 – Q4 2024</span>
+            </h3>
+            <div class="metric-tabs">
+              <button type="button" class="mtab on" data-metric="roa">ROA</button>
+              <button type="button" class="mtab" data-metric="nwr">Net Worth Ratio</button>
+              <button type="button" class="mtab" data-metric="delinq">Delinquency</button>
+              <button type="button" class="mtab" data-metric="lts">Loan-to-Share</button>
+            </div>
+            <div class="trend-chart-wrap">
+              <svg class="trend-svg" viewBox="0 0 600 80" preserveAspectRatio="none" id="trend-chart">
+                <!-- Grid lines -->
+                <line x1="0" y1="20" x2="600" y2="20" stroke="#e5e5e0" stroke-width="0.5" stroke-dasharray="4,4"/>
+                <line x1="0" y1="40" x2="600" y2="40" stroke="#e5e5e0" stroke-width="0.5" stroke-dasharray="4,4"/>
+                <line x1="0" y1="60" x2="600" y2="60" stroke="#e5e5e0" stroke-width="0.5" stroke-dasharray="4,4"/>
+                <!-- River Valley FCU (teal) -->
+                <polyline id="trend-cu1" fill="none" stroke="#1D9E75" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                  points="0,72 86,68 171,62 257,58 343,51 429,47 514,43 600,37"/>
+                <!-- Coastal Members CU (blue) -->
+                <polyline id="trend-cu2" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                  points="0,42 86,37 171,31 257,27 343,22 429,16 514,12 600,8"/>
+                <!-- Blue Ridge Community CU (orange) -->
+                <polyline id="trend-cu3" fill="none" stroke="#ea580c" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"
+                  points="0,51 86,58 171,47 257,53 343,62 429,58 514,64 600,64"/>
+                <!-- End dots -->
+                <circle cx="600" cy="37" r="3" fill="#1D9E75"/>
+                <circle cx="600" cy="8" r="3" fill="#2563eb"/>
+                <circle cx="600" cy="64" r="3" fill="#ea580c"/>
+              </svg>
+            </div>
+            <div class="qtr-axis">
+              <span>Q1'23</span><span>Q2'23</span><span>Q3'23</span><span>Q4'23</span>
+              <span>Q1'24</span><span>Q2'24</span><span>Q3'24</span><span>Q4'24</span>
+            </div>
+            <div class="trend-legend">
+              <div class="legend-item"><div class="legend-dot" style="background:#1D9E75"></div>River Valley FCU</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#2563eb"></div>Coastal Members CU</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#ea580c"></div>Blue Ridge Community CU</div>
+            </div>
+          </div>
+
+          <!-- Comparison table -->
+          <div class="compare-body">
+            <div class="compare-table-wrap">
+              <table class="compare-table">
+                <thead>
+                  <tr>
+                    <th class="metric-col">Metric</th>
+                    <th class="cu-col" id="col-cu1">
+                      <div class="cu-col-hd cu1">
+                        <div class="cu-name">River Valley FCU</div>
+                        <div class="cu-meta">NCUA #12345 · Federal · OH · $420M</div>
+                      </div>
+                    </th>
+                    <th class="cu-col" id="col-cu2">
+                      <div class="cu-col-hd cu2">
+                        <div class="cu-name">Coastal Members CU</div>
+                        <div class="cu-meta">NCUA #67890 · State · FL · $890M</div>
+                      </div>
+                    </th>
+                    <th class="cu-col" id="col-cu3">
+                      <div class="cu-col-hd cu3">
+                        <div class="cu-name">Blue Ridge Community CU</div>
+                        <div class="cu-meta">NCUA #54321 · Federal · VA · $650M</div>
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <!-- ROA -->
+                  <tr>
+                    <td class="metric-label">
+                      Return on Assets
+                      <div class="metric-sub">Net income / avg assets · annualized</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">0.75%</div>
+                      <div class="cell-delta delta up">▲ 4 bps vs Q3</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#1D9E75" points="0,18 24,13 48,9 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:68%"></div></div>
+                        <div class="pctile-label">68th pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">0.89%</div>
+                      <div class="cell-delta delta up">▲ 7 bps vs Q3</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#2563eb" points="0,18 24,14 48,10 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:81%"></div></div>
+                        <div class="pctile-label">81st pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">0.62%</div>
+                      <div class="cell-delta delta dn">▼ 2 bps vs Q3</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#ea580c" points="0,6 24,12 48,18 72,18"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:44%"></div></div>
+                        <div class="pctile-label">44th pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Net Worth Ratio -->
+                  <tr>
+                    <td class="metric-label">
+                      Net Worth Ratio
+                      <div class="metric-sub">NCUA capitalization threshold ≥10% = well capitalized</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">9.8%</div>
+                      <div class="cell-delta delta up">▲ 10 bps vs Q3</div>
+                      <span class="camel-badge adequate">Adequately capitalized</span>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#1D9E75" points="0,18 24,13 48,9 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:72%"></div></div>
+                        <div class="pctile-label">72nd pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">11.2%</div>
+                      <div class="cell-delta delta up">▲ 8 bps vs Q3</div>
+                      <span class="camel-badge well">Well capitalized</span>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#2563eb" points="0,18 24,13 48,9 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:88%"></div></div>
+                        <div class="pctile-label">88th pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">8.9%</div>
+                      <div class="cell-delta delta dn">▼ 3 bps vs Q3</div>
+                      <span class="camel-badge adequate">Adequately capitalized</span>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#ea580c" points="0,6 24,14 48,18 72,20"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:55%"></div></div>
+                        <div class="pctile-label">55th pctile vs. all CUs</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Delinquency -->
+                  <tr>
+                    <td class="metric-label">
+                      Delinquency Rate
+                      <div class="metric-sub">Loans ≥60 days past due / total loans</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">0.85%</div>
+                      <div class="cell-delta delta up">▼ 5 bps vs Q3 ✓</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#1D9E75" points="0,4 24,13 48,16 72,18"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:53%"></div></div>
+                        <div class="pctile-label">53rd pctile (lower = better)</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">0.54%</div>
+                      <div class="cell-delta delta up">▼ 8 bps vs Q3 ✓</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#2563eb" points="0,4 24,9 48,16 72,18"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:79%"></div></div>
+                        <div class="pctile-label">79th pctile (lower = better)</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">1.24%</div>
+                      <div class="cell-delta delta dn">▲ 12 bps vs Q3</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#ea580c" points="0,18 24,14 48,10 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:28%"></div></div>
+                        <div class="pctile-label">28th pctile (lower = better)</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Loan-to-Share -->
+                  <tr>
+                    <td class="metric-label">
+                      Loan-to-Share Ratio
+                      <div class="metric-sub">Total loans / total shares (member deposits)</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">84%</div>
+                      <div class="cell-delta delta dn">▲ 2 pts vs Q3 ⚠</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#1D9E75" points="0,18 24,13 48,9 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:74%"></div></div>
+                        <div class="pctile-label">74th pctile (elevated)</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">76%</div>
+                      <div class="cell-delta delta neu">— flat vs Q3</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#2563eb" points="0,10 24,11 48,11 72,12"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:58%"></div></div>
+                        <div class="pctile-label">58th pctile</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">91%</div>
+                      <div class="cell-delta delta dn">▲ 3 pts vs Q3 ⚠</div>
+                      <div class="cell-spark">
+                        <svg class="mini-spark" viewBox="0 0 72 22" preserveAspectRatio="none">
+                          <polyline class="line" stroke="#ea580c" points="0,18 24,13 48,8 72,4"/>
+                        </svg>
+                      </div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:86%"></div></div>
+                        <div class="pctile-label">86th pctile (high)</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Member Growth -->
+                  <tr>
+                    <td class="metric-label">
+                      Member Growth
+                      <div class="metric-sub">Year-over-year membership change</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">+2.4%</div>
+                      <div class="cell-delta delta up">42,800 members</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:55%"></div></div>
+                        <div class="pctile-label">55th pctile</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">+5.1%</div>
+                      <div class="cell-delta delta up">78,200 members</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:82%"></div></div>
+                        <div class="pctile-label">82nd pctile</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">+1.8%</div>
+                      <div class="cell-delta delta neu">58,400 members</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:42%"></div></div>
+                        <div class="pctile-label">42nd pctile</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                  <!-- Op-Ex Ratio -->
+                  <tr>
+                    <td class="metric-label">
+                      Operating Expense Ratio
+                      <div class="metric-sub">Op. expenses / avg assets (lower = more efficient)</div>
+                    </td>
+                    <td>
+                      <div class="cell-val">3.12%</div>
+                      <div class="cell-delta delta up">▼ 4 bps vs Q3 ✓</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu1" style="width:62%"></div></div>
+                        <div class="pctile-label">62nd pctile (lower = better)</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">2.74%</div>
+                      <div class="cell-delta delta up">▼ 9 bps vs Q3 ✓</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu2" style="width:78%"></div></div>
+                        <div class="pctile-label">78th pctile (lower = better)</div>
+                      </div>
+                    </td>
+                    <td>
+                      <div class="cell-val">3.58%</div>
+                      <div class="cell-delta delta dn">▲ 6 bps vs Q3</div>
+                      <div class="pctile-bar-wrap">
+                        <div class="pctile-bar"><div class="pctile-fill cu3" style="width:33%"></div></div>
+                        <div class="pctile-label">33rd pctile (lower = better)</div>
+                      </div>
+                    </td>
+                  </tr>
+
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Compare footer -->
+          <div class="compare-footer">
+            <p class="note">Q4 2024 · NCUA 5300 data · Percentiles vs. all federally insured CUs</p>
+            <div class="actions">
+              <button type="button" class="btn-secondary">Export to Excel</button>
+              <button type="button" class="btn-explain" id="btn-explain-gaps">
+                Explain these gaps in Ask →
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ══════════ PULSE VIEW ══════════ -->
+      <div id="view-pulse" class="view-panel">
+        <div class="pulse-wrap">
+
+          <!-- Filter bar -->
+          <div class="pulse-filter-bar">
+            <label>Asset band:</label>
+            <select class="filter-sel"><option>All sizes</option><option>Under $100M</option><option>$100M–$500M</option><option>$500M–$2B</option><option>Over $2B</option></select>
+            <div class="pulse-divider"></div>
+            <label>State:</label>
+            <select class="filter-sel"><option>National</option><option>OH</option><option>FL</option><option>VA</option><option>TX</option></select>
+            <div class="pulse-divider"></div>
+            <label>Charter:</label>
+            <select class="filter-sel"><option>All</option><option>Federal CU</option><option>State-chartered</option></select>
+            <div class="pulse-divider"></div>
+            <label>FOM:</label>
+            <select class="filter-sel"><option>All FOM types</option><option>Community</option><option>SEG-based</option><option>Associational</option></select>
+          </div>
+
+          <div class="pulse-grid">
+
+            <!-- Market stats -->
+            <div class="pg-card span-3">
+              <h4>Insured CUs</h4>
+              <div class="big-stat">4,892</div>
+              <div class="big-stat-sub">Q4 2024 5300 filings in dataset</div>
+            </div>
+            <div class="pg-card span-3">
+              <h4>Median ROA</h4>
+              <div class="big-stat">0.71<span class="unit">%</span></div>
+              <div class="big-stat-sub" style="color:var(--green)">▲ 3 bps vs Q3</div>
+            </div>
+            <div class="pg-card span-3">
+              <h4>Median Net Worth</h4>
+              <div class="big-stat">9.8<span class="unit">%</span></div>
+              <div class="big-stat-sub" style="color:var(--muted)">Stable quarter-over-quarter</div>
+            </div>
+            <div class="pg-card span-3">
+              <h4>Below 7% NWR ⚠</h4>
+              <div class="big-stat" style="color:var(--red)">143</div>
+              <div class="big-stat-sub" style="color:var(--red)">Adequately or under-capitalized</div>
+            </div>
+
+            <!-- Top movers -->
+            <div class="pg-card span-8">
+              <h4>Top movers · ROA Δ (QoQ) — click to open in Ask</h4>
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Credit Union</th><th>Charter</th><th>State</th><th>Assets</th>
+                    <th style="text-align:right">ROA Δ</th><th style="text-align:right">NWR</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr class="pulse-row-clickable" data-cu="coastal">
+                    <td>Coastal Members CU</td><td>State</td><td>FL</td><td>$890M</td>
+                    <td class="mono" style="color:var(--green)">+18 bps</td><td class="mono">11.2%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable" data-cu="river-valley">
+                    <td>River Valley FCU</td><td>Federal</td><td>OH</td><td>$420M</td>
+                    <td class="mono" style="color:var(--green)">+4 bps</td><td class="mono">9.8%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Tri-State Community CU</td><td>Federal</td><td>KY</td><td>$310M</td>
+                    <td class="mono" style="color:var(--green)">+3 bps</td><td class="mono">10.6%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Lakeside Municipal CU</td><td>State</td><td>MN</td><td>$720M</td>
+                    <td class="mono" style="color:var(--muted)">−1 bps</td><td class="mono">9.4%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable" data-cu="blue-ridge">
+                    <td>Blue Ridge Community CU</td><td>Federal</td><td>VA</td><td>$650M</td>
+                    <td class="mono" style="color:var(--red)">−9 bps</td><td class="mono">8.9%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Desert Southwest FCU</td><td>Federal</td><td>AZ</td><td>$1.1B</td>
+                    <td class="mono" style="color:var(--red)">−14 bps</td><td class="mono">8.2%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- NWR Distribution -->
+            <div class="pg-card span-4">
+              <h4>NWR Distribution — all CUs</h4>
+              <div class="dist-bar-wrap">
+                <div class="dist-row">
+                  <div class="dist-label">&lt; 6%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:5%;background:var(--red)"></div></div>
+                  <div class="dist-pct" style="color:var(--red)">2%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">6–7%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:2.5%;background:var(--red)"></div></div>
+                  <div class="dist-pct" style="color:var(--red)">1%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">7–8%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:12.5%;background:var(--amber)"></div></div>
+                  <div class="dist-pct" style="color:var(--amber)">5%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">8–9%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:30%;background:var(--amber)"></div></div>
+                  <div class="dist-pct" style="color:var(--amber)">12%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">9–10%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:55%;background:var(--teal)"></div></div>
+                  <div class="dist-pct">22%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">10–12%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:100%;background:var(--teal)"></div></div>
+                  <div class="dist-pct">38%</div>
+                </div>
+                <div class="dist-row">
+                  <div class="dist-label">&gt; 12%</div>
+                  <div class="dist-bar"><div class="dist-fill" style="width:52.5%;background:var(--green)"></div></div>
+                  <div class="dist-pct" style="color:var(--green)">20%</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Risk radar -->
+            <div class="pg-card span-6">
+              <h4>Risk radar · Delinquency &gt;2% AND NWR &lt;8%</h4>
+              <p style="font-size:11px;color:var(--muted);margin-bottom:10px;line-height:1.5">Credit unions flagged on both asset quality and capital stress simultaneously. Click a row to open in Ask for root-cause narrative.</p>
+              <table class="data">
+                <thead>
+                  <tr><th>Credit Union</th><th>State</th><th style="text-align:right">Delinq.</th><th style="text-align:right">NWR</th></tr>
+                </thead>
+                <tbody>
+                  <tr class="pulse-row-clickable">
+                    <td>Frontier Workers CU</td><td>WV</td>
+                    <td class="mono" style="color:var(--red)">3.14%</td>
+                    <td class="mono" style="color:var(--red)">6.8%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Gulf Coast Educators FCU</td><td>TX</td>
+                    <td class="mono" style="color:var(--red)">2.81%</td>
+                    <td class="mono" style="color:var(--amber)">7.2%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Appalachian Heritage CU</td><td>KY</td>
+                    <td class="mono" style="color:var(--red)">2.44%</td>
+                    <td class="mono" style="color:var(--amber)">7.6%</td>
+                  </tr>
+                  <tr class="pulse-row-clickable">
+                    <td>Delta Agricultural FCU</td><td>MS</td>
+                    <td class="mono" style="color:var(--amber)">2.08%</td>
+                    <td class="mono" style="color:var(--amber)">7.9%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Pulse + Ask synergy -->
+            <div class="pg-card span-6">
+              <h4>How Pulse + Ask work together</h4>
+              <p style="font-size:12px;color:var(--muted);line-height:1.6">
+                <strong style="color:var(--txt)">Pulse</strong> scans the full NCUA universe — spot outliers, track NWR distribution, identify movers.
+                <strong style="color:var(--txt)">Ask</strong> drills into any CU with cited 5300 data, peer context, and optional SQL.
+                <strong style="color:var(--txt)">Compare</strong> puts 2–5 CUs side by side across all key metrics with 8-quarter trend lines.
+              </p>
+              <p style="font-size:12px;color:var(--muted);line-height:1.6;margin-top:8px">
+                Click any row in Pulse to jump directly into an Ask conversation with that CU loaded in context.
+              </p>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════ LIBRARY VIEW ══════════ -->
+      <div id="view-library" class="view-panel">
+        <div class="library-grid">
+
+          <div class="lib-card">
+            <h4>Saved Comparisons</h4>
+            <div class="lib-item">
+              <div class="icon">📊</div>
+              <div>
+                <div class="t">OH FCUs — Q4 peer review</div>
+                <div class="d">River Valley · Buckeye · Erie Shores · Mar 18, 2026</div>
+              </div>
+              <span class="tag">3 CUs</span>
+            </div>
+            <div class="lib-item">
+              <div class="icon">📊</div>
+              <div>
+                <div class="t">M&amp;A targets: Midwest CUs $300–700M</div>
+                <div class="d">5 institutions · Feb 28, 2026</div>
+              </div>
+              <span class="tag">5 CUs</span>
+            </div>
+            <div class="lib-item">
+              <div class="icon">📊</div>
+              <div>
+                <div class="t">Risk radar cohort — NWR &lt;9%</div>
+                <div class="d">Auto-generated · Mar 1, 2026</div>
+              </div>
+              <span class="tag">12 CUs</span>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <h4>Saved Threads</h4>
+            <div class="lib-item">
+              <div class="icon">💬</div>
+              <div>
+                <div class="t">Board prep — Q4 2024 River Valley FCU</div>
+                <div class="d">Capital, asset quality, NIM · Mar 15, 2026</div>
+              </div>
+            </div>
+            <div class="lib-item">
+              <div class="icon">💬</div>
+              <div>
+                <div class="t">NCUA exam prep: delinquency narrative</div>
+                <div class="d">River Valley · 8Q analysis · Mar 8, 2026</div>
+              </div>
+            </div>
+            <div class="lib-item">
+              <div class="icon">💬</div>
+              <div>
+                <div class="t">Coastal Members CU deep-dive</div>
+                <div class="d">Growth drivers, loan mix, ALM · Feb 20, 2026</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lib-card">
+            <h4>Report Templates</h4>
+            <div class="lib-item">
+              <div class="icon">📄</div>
+              <div>
+                <div class="t">NCUA Exam Prep One-Pager</div>
+                <div class="d">Capital, asset quality, earnings, liquidity, sensitivity</div>
+              </div>
+            </div>
+            <div class="lib-item">
+              <div class="icon">📄</div>
+              <div>
+                <div class="t">Board Financial Summary</div>
+                <div class="d">8Q trends · peer benchmarks · forward outlook</div>
+              </div>
+            </div>
+            <div class="lib-item">
+              <div class="icon">📄</div>
+              <div>
+                <div class="t">Peer Benchmark Report</div>
+                <div class="d">Full metric grid vs. NCUA asset-band cohort</div>
+              </div>
+            </div>
+            <div class="lib-item">
+              <div class="icon">📄</div>
+              <div>
+                <div class="t">M&amp;A Due Diligence Summary</div>
+                <div class="d">5300 analysis · risk flags · capital position</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="lib-card span-3">
+            <h4>About Library</h4>
+            <p style="font-size:12px;color:var(--muted);line-height:1.6">
+              Library holds <strong style="color:var(--txt)">generated PDFs</strong>, saved comparisons, pinned SQL queries, and team-shared prompt templates.
+              In a production build: scheduled digests (weekly 5300 updates), Slack/Teams alert integrations, SOX-ready audit logs of all queries, and role-based sharing across your organization.
+              Templates can be parameterized — swap the institution name and the 5300 data auto-populates.
+            </p>
+          </div>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="foot">
+    CallRpt AI · CU Command Center · NCUA 5300 · Q4 2024 · Prototype — not financial advice · interactions are demo-only
+  </div>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Data ── */
+  var cuData = {
+    'river-valley': {
+      name: 'River Valley FCU', sub: 'Federal CU · OH · NCUA #12345 · $420M assets · 42,800 members',
+      ctxDetail: 'River Valley FCU · NCUA #12345 · Federal · OH · $420M assets',
+      kpis: { roa: '0.75%', nwr: '9.8%', delinq: '0.85%', lts: '84%' },
+      deltas: { roa: 'up', nwr: 'up', delinq: 'up', lts: 'dn' },
+      deltaText: { roa: '▲ 4 bps vs Q3', nwr: '▲ 10 bps vs Q3', delinq: '▼ 5 bps vs Q3 ✓', lts: '▲ 2 pts vs Q3' },
+      placeholder: 'Ask about River Valley FCU — trends, peer benchmarks, capital, asset quality…'
+    },
+    'coastal': {
+      name: 'Coastal Members CU', sub: 'State-Chartered CU · FL · NCUA #67890 · $890M assets · 78,200 members',
+      ctxDetail: 'Coastal Members CU · NCUA #67890 · State · FL · $890M assets',
+      kpis: { roa: '0.89%', nwr: '11.2%', delinq: '0.54%', lts: '76%' },
+      deltas: { roa: 'up', nwr: 'up', delinq: 'up', lts: 'neu' },
+      deltaText: { roa: '▲ 7 bps vs Q3', nwr: '▲ 8 bps vs Q3', delinq: '▼ 8 bps vs Q3 ✓', lts: '— flat vs Q3' },
+      placeholder: 'Ask about Coastal Members CU — growth drivers, loan mix, capital…'
+    },
+    'blue-ridge': {
+      name: 'Blue Ridge Community CU', sub: 'Federal CU · VA · NCUA #54321 · $650M assets · 58,400 members',
+      ctxDetail: 'Blue Ridge Community CU · NCUA #54321 · Federal · VA · $650M assets',
+      kpis: { roa: '0.62%', nwr: '8.9%', delinq: '1.24%', lts: '91%' },
+      deltas: { roa: 'dn', nwr: 'dn', delinq: 'dn', lts: 'dn' },
+      deltaText: { roa: '▼ 2 bps vs Q3', nwr: '▼ 3 bps vs Q3', delinq: '▲ 12 bps vs Q3 ⚠', lts: '▲ 3 pts vs Q3 ⚠' },
+      placeholder: 'Ask about Blue Ridge Community CU — delinquency, capital pressure, ALM…'
+    }
+  };
+
+  /* Trend data per metric for the 3 CUs */
+  var trendData = {
+    roa: {
+      cu1: { points: '0,72 86,68 171,62 257,58 343,51 429,47 514,43 600,37', label: 'ROA' },
+      cu2: { points: '0,42 86,37 171,31 257,27 343,22 429,16 514,12 600,8', label: 'ROA' },
+      cu3: { points: '0,51 86,58 171,47 257,53 343,62 429,58 514,64 600,64', label: 'ROA' }
+    },
+    nwr: {
+      cu1: { points: '0,64 86,58 171,52 257,48 343,44 429,38 514,34 600,28', label: 'NWR' },
+      cu2: { points: '0,32 86,28 171,24 257,20 343,16 429,14 514,12 600,10', label: 'NWR' },
+      cu3: { points: '0,38 86,44 171,46 257,48 343,50 429,52 514,54 600,56', label: 'NWR' }
+    },
+    delinq: {
+      cu1: { points: '0,28 86,32 171,30 257,36 343,38 429,40 514,42 600,44', label: 'Delinq.' },
+      cu2: { points: '0,22 86,26 171,30 257,34 343,36 429,40 514,42 600,44', label: 'Delinq.' },
+      cu3: { points: '0,44 86,38 171,42 257,36 343,28 429,22 514,16 600,10', label: 'Delinq.' }
+    },
+    lts: {
+      cu1: { points: '0,60 86,54 171,48 257,42 343,38 429,32 514,26 600,20', label: 'Loan-to-Share' },
+      cu2: { points: '0,42 86,40 171,38 257,40 343,38 429,40 514,38 600,40', label: 'Loan-to-Share' },
+      cu3: { points: '0,68 86,62 171,56 257,48 343,40 429,32 514,24 600,16', label: 'Loan-to-Share' }
+    }
+  };
+
+  /* ── State ── */
+  var activeView = 'ask';
+  var activeCU = 'river-valley';
+
+  /* ── Elements ── */
+  var gnavEls = document.querySelectorAll('.gnav');
+  var panels = {
+    ask: document.getElementById('view-ask'),
+    compare: document.getElementById('view-compare'),
+    pulse: document.getElementById('view-pulse'),
+    library: document.getElementById('view-library')
+  };
+  var viewTitle = document.getElementById('view-title');
+  var ctxPill = document.getElementById('ctx-pill');
+  var ctxDetail = document.getElementById('ctx-detail');
+
+  var ctxByView = {
+    ask:     { text: 'Live context', cls: 'cpill live' },
+    compare: { text: 'Compare', cls: 'cpill compare' },
+    pulse:   { text: 'Market lens', cls: 'cpill batch' },
+    library: { text: 'Workspace', cls: 'cpill batch' }
+  };
+  var titleByView = { ask: 'Ask', compare: 'Compare', pulse: 'Pulse', library: 'Library' };
+
+  /* ── Switch view ── */
+  function switchView(v) {
+    if (!panels[v]) return;
+    activeView = v;
+    gnavEls.forEach(function (el) { el.classList.toggle('active', el.getAttribute('data-view') === v); });
+    Object.keys(panels).forEach(function (k) { panels[k].classList.toggle('active', k === v); });
+    viewTitle.textContent = titleByView[v];
+    var c = ctxByView[v];
+    ctxPill.textContent = c.text; ctxPill.className = c.cls;
+    if (v === 'ask') {
+      var cu = cuData[activeCU];
+      ctxDetail.textContent = cu ? cu.ctxDetail : '';
+    } else if (v === 'compare') {
+      ctxDetail.textContent = 'River Valley FCU · Coastal Members CU · Blue Ridge Community CU';
+    } else if (v === 'pulse') {
+      ctxDetail.textContent = 'All federally insured CUs · Q4 2024 · 4,892 institutions';
+    } else {
+      ctxDetail.textContent = 'Saved threads, comparisons, and report templates';
+    }
+  }
+
+  gnavEls.forEach(function (el) {
+    el.addEventListener('click', function () { switchView(el.getAttribute('data-view')); });
+  });
+
+  /* ── Sidebar seg toggle ── */
+  var segInst   = document.getElementById('seg-inst');
+  var segFilter = document.getElementById('seg-filter');
+  var sideInst   = document.getElementById('sidebar-inst');
+  var sideFilter = document.getElementById('sidebar-filter');
+
+  segInst.addEventListener('click', function () {
+    segInst.classList.add('sel'); segFilter.classList.remove('sel');
+    sideInst.classList.remove('hidden'); sideFilter.classList.add('hidden');
+  });
+  segFilter.addEventListener('click', function () {
+    segFilter.classList.add('sel'); segInst.classList.remove('sel');
+    sideFilter.classList.remove('hidden'); sideInst.classList.add('hidden');
+  });
+
+  /* ── CU filter pills toggle ── */
+  document.querySelectorAll('.fpill').forEach(function (pill) {
+    pill.addEventListener('click', function () {
+      var group = pill.closest('.filter-pills');
+      group.querySelectorAll('.fpill').forEach(function (p) { p.classList.remove('on'); });
+      pill.classList.add('on');
+    });
+  });
+
+  /* ── Role switch ── */
+  document.querySelectorAll('.role-switch button').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      btn.parentElement.querySelectorAll('button').forEach(function (b) { b.classList.toggle('on', b === btn); });
+    });
+  });
+
+  /* ── Institution selection in sidebar ── */
+  function loadCU(key) {
+    var cu = cuData[key];
+    if (!cu) return;
+    activeCU = key;
+
+    /* Update sidebar active state */
+    document.querySelectorAll('[data-cu]').forEach(function (el) {
+      el.classList.toggle('on', el.getAttribute('data-cu') === key);
+    });
+
+    /* Update context rail */
+    var railName = document.getElementById('rail-cu-name');
+    var railSub  = document.getElementById('rail-cu-sub');
+    if (railName) railName.textContent = cu.name;
+    if (railSub)  railSub.textContent  = cu.sub;
+
+    /* Update KPI cards */
+    var kpiVals = document.querySelectorAll('#view-ask .kpi');
+    var kpiKeys = ['roa','nwr','delinq','lts'];
+    kpiVals.forEach(function (kpi, i) {
+      var key2 = kpiKeys[i];
+      if (!key2) return;
+      var valEl   = kpi.querySelector('.val');
+      var deltaEl = kpi.querySelector('.delta');
+      if (valEl)   valEl.textContent   = cu.kpis[key2] || '';
+      if (deltaEl) {
+        deltaEl.textContent = cu.deltaText[key2] || '';
+        deltaEl.className   = 'delta ' + (cu.deltas[key2] || 'neu');
+      }
+    });
+
+    /* Update textarea placeholder */
+    var ta = document.getElementById('ask-textarea');
+    if (ta) ta.placeholder = cu.placeholder;
+
+    /* Update ctx detail */
+    ctxDetail.textContent = cu.ctxDetail;
+
+    /* Switch to Ask */
+    switchView('ask');
+  }
+
+  document.querySelectorAll('[data-cu]').forEach(function (el) {
+    el.addEventListener('click', function () { loadCU(el.getAttribute('data-cu')); });
+  });
+
+  /* ── Quick prompt chips → textarea ── */
+  function fillTextarea(text) {
+    var ta = document.getElementById('ask-textarea');
+    if (!ta) return;
+    ta.value = text;
+    ta.focus();
+    switchView('ask');
+  }
+
+  document.querySelectorAll('.chip[data-prompt]').forEach(function (chip) {
+    chip.addEventListener('click', function () { fillTextarea(chip.getAttribute('data-prompt')); });
+  });
+  document.querySelectorAll('.follow-chip[data-prompt]').forEach(function (chip) {
+    chip.addEventListener('click', function () { fillTextarea(chip.getAttribute('data-prompt')); });
+  });
+
+  /* ── "Open Compare" button in rail ── */
+  document.querySelectorAll('[data-switch]').forEach(function (btn) {
+    btn.addEventListener('click', function () { switchView(btn.getAttribute('data-switch')); });
+  });
+
+  /* ── Explain gaps → Ask ── */
+  var btnExplain = document.getElementById('btn-explain-gaps');
+  if (btnExplain) {
+    btnExplain.addEventListener('click', function () {
+      fillTextarea(
+        'Explain the key performance gaps between River Valley FCU, Coastal Members CU, and Blue Ridge Community CU — specifically why ROA and net worth differ so significantly, and what Blue Ridge should focus on to improve its delinquency and loan-to-share trends.'
+      );
+    });
+  }
+
+  /* ── Pulse rows → Ask ── */
+  document.querySelectorAll('.pulse-row-clickable').forEach(function (row) {
+    row.addEventListener('click', function () {
+      var cuKey = row.getAttribute('data-cu');
+      if (cuKey && cuData[cuKey]) {
+        loadCU(cuKey);
+      } else {
+        switchView('ask');
+      }
+    });
+  });
+
+  /* ── Compare: remove institution chip ── */
+  document.querySelectorAll('.inst-chip .rm').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var col = btn.getAttribute('data-col');
+      var chip = btn.closest('.inst-chip');
+      var colEl = document.getElementById('col-' + col);
+      /* Toggle visibility */
+      if (chip) chip.style.opacity = chip.style.opacity === '0.3' ? '1' : '0.3';
+      if (colEl) colEl.style.opacity = colEl.style.opacity === '0.3' ? '1' : '0.3';
+      /* Toggle all cells in this column */
+      document.querySelectorAll('.compare-table td:nth-child(' + (col === 'cu1' ? 2 : col === 'cu2' ? 3 : 4) + ')').forEach(function (td) {
+        td.style.opacity = td.style.opacity === '0.3' ? '1' : '0.3';
+      });
+    });
+  });
+
+  /* ── Compare: metric tabs ── */
+  var mtabs = document.querySelectorAll('.mtab');
+  var cu1Line = document.getElementById('trend-cu1');
+  var cu2Line = document.getElementById('trend-cu2');
+  var cu3Line = document.getElementById('trend-cu3');
+
+  mtabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      mtabs.forEach(function (t) { t.classList.remove('on'); });
+      tab.classList.add('on');
+      var metric = tab.getAttribute('data-metric');
+      var d = trendData[metric];
+      if (d && cu1Line) cu1Line.setAttribute('points', d.cu1.points);
+      if (d && cu2Line) cu2Line.setAttribute('points', d.cu2.points);
+      if (d && cu3Line) cu3Line.setAttribute('points', d.cu3.points);
+      /* Update end dots */
+      var dots = document.querySelectorAll('#trend-chart circle');
+      if (dots[0] && d) { var p1 = d.cu1.points.split(' ').pop().split(','); dots[0].setAttribute('cx', p1[0]); dots[0].setAttribute('cy', p1[1]); }
+      if (dots[1] && d) { var p2 = d.cu2.points.split(' ').pop().split(','); dots[1].setAttribute('cx', p2[0]); dots[1].setAttribute('cy', p2[1]); }
+      if (dots[2] && d) { var p3 = d.cu3.points.split(' ').pop().split(','); dots[2].setAttribute('cx', p3[0]); dots[2].setAttribute('cy', p3[1]); }
+    });
+  });
+
+})();
+</script>
+</body>
+</html>

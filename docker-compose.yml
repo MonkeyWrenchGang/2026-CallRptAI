@@ -1,0 +1,30 @@
+services:
+  backend:
+    build: ./backend
+    container_name: callrpt-backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_PATH=/app/data/callreports.db
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    volumes:
+      # Persist the SQLite database across container restarts
+      - db-data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build: ./frontend
+    container_name: callrpt-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db-data:

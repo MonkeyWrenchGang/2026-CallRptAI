@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CallRpt AI — Mockup C: Editorial minimal</title>
+  <link href="https://fonts.googleapis.com/css2?family=Libre+Baskerville:ital,wght@0,400;0,700;1,400&family=Source+Sans+3:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root { --ink: #141414; --ink2: #4a4a4a; --line: #e5e5e5; --accent: #0d9488; }
+    body { font-family: 'Source Sans 3', sans-serif; background: #fafaf9; color: var(--ink); min-height: 100vh; display: flex; flex-direction: column; font-size: 15px; }
+    .layout { flex: 1; max-width: 720px; margin: 0 auto; padding: 48px 24px 120px; width: 100%; }
+    .eyebrow { font-size: 11px; color: var(--ink2); letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 12px; }
+    h1 { font-family: 'Libre Baskerville', Georgia, serif; font-size: 28px; font-weight: 400; line-height: 1.25; margin-bottom: 8px; }
+    .lede { font-size: 15px; color: var(--ink2); line-height: 1.6; margin-bottom: 0; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; margin-bottom: 40px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 999px; border: 1px solid var(--line); background: #fff; font-size: 13px; color: var(--ink2); }
+    .chip strong { color: var(--accent); font-weight: 600; }
+    .panel { border: 1px solid var(--line); border-radius: 0; background: #fff; margin-bottom: 0; }
+    .panel-hd { padding: 12px 18px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 600; color: var(--ink2); display: flex; justify-content: space-between; align-items: center; }
+    .panel-hd button { background: none; border: none; color: var(--accent); font-size: 12px; font-family: inherit; cursor: pointer; }
+    .panel-bd { padding: 18px; font-size: 13px; color: var(--ink2); line-height: 1.65; }
+    .panel-bd p { margin-bottom: 12px; }
+    .panel-bd p:last-child { margin-bottom: 0; }
+    .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--line); border-radius: 0; overflow: hidden; margin-top: 8px; }
+    .stat { background: #fff; padding: 14px 12px; text-align: center; }
+    .stat .lbl { font-size: 10px; color: var(--ink2); text-transform: uppercase; letter-spacing: .06em; }
+    .stat .num { font-size: 18px; font-weight: 600; color: var(--ink); margin-top: 4px; }
+    .composer-fixed { position: fixed; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, #fafaf9 70%, transparent); padding: 24px 24px 32px; }
+    .composer-inner { max-width: 720px; margin: 0 auto; }
+    .composer-inner { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-end; box-shadow: 0 4px 24px rgba(0,0,0,.06); }
+    .composer-inner .placeholder { flex: 1; font-size: 14px; color: #9ca3af; min-height: 24px; }
+    .send { width: 44px; height: 44px; border-radius: 50%; background: var(--accent); border: none; flex-shrink: 0; cursor: default; }
+    .fine { font-size: 11px; color: #9ca3af; text-align: center; margin-top: 8px; }
+    .foot { font-size: 10px; color: #9ca3af; text-align: center; padding: 10px; }
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <p class="eyebrow">CallRpt AI · Executive intelligence</p>
+    <h1>Ask your call data</h1>
+    <p class="lede">Natural-language answers across FFIEC and NCUA quarterly filings—grounded in your selected institution or the full market.</p>
+    <div class="chip-row">
+      <span class="chip"><strong>Institution</strong> Summit Community Bank</span>
+      <span class="chip">Clear selection</span>
+    </div>
+    <div class="panel">
+      <div class="panel-hd">
+        <span>Context · collapsible</span>
+        <button type="button">Hide</button>
+      </div>
+      <div class="panel-bd">
+        <p>When an institution is selected, key ratios and a short peer list appear here so you can scan facts before you type. This is intentionally calm—no charts required for the first read.</p>
+        <div class="stats">
+          <div class="stat"><div class="lbl">ROA</div><div class="num">1.12%</div></div>
+          <div class="stat"><div class="lbl">NPL</div><div class="num">0.84%</div></div>
+          <div class="stat"><div class="lbl">Tier 1</div><div class="num">12.4%</div></div>
+          <div class="stat"><div class="lbl">Efficiency</div><div class="num">58.2%</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:16px">
+      <div class="panel-hd">
+        <span>Latest answer</span>
+      </div>
+      <div class="panel-bd">
+        <p>Summit Community Bank’s <strong>ROA</strong> of <strong>1.12%</strong> sits above the peer median for similar asset size in-region. <strong>NPL ratio</strong> is <strong>0.84%</strong>, with no material spike in past-due buckets. I can chart trends over eight quarters or compare to peers—say which you prefer.</p>
+      </div>
+    </div>
+  </div>
+  <div class="composer-fixed">
+    <div class="composer-inner">
+      <div class="placeholder">Ask about Summit Community Bank…</div>
+      <div class="send" aria-hidden="true"></div>
+    </div>
+    <p class="fine">Prototype — not financial advice · Data from FFIEC &amp; NCUA call reports</p>
+  </div>
+  <div class="foot">Mockup C — Editorial minimal · Static preview</div>
+</body>
+</html>
