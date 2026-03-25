@@ -1,6 +1,13 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
-import { formatAssets } from '../utils/format';
+import { fmtAssets } from '../utils/format';
+
+const QUICK_PROMPTS = [
+  '8Q NWR trend',
+  'Compare to peers',
+  'Explain delinquency spike',
+  'Member growth outlook',
+];
 
 export default function ChatPanel({
   sidebarOpen,
@@ -20,6 +27,7 @@ export default function ChatPanel({
   showOverviewToggle,
   overviewOpen,
   onToggleOverview,
+  onQuickCompare,
 }) {
   return (
     <main className="chat-area">
@@ -41,16 +49,25 @@ export default function ChatPanel({
             </h2>
             {selectedInstitution && (
               <span className="header-detail">
-                {selectedInstitution.institution_type === 'bank' ? 'Bank' : 'Credit union'}
-                {' · '}
-                {selectedInstitution.state}
-                {' · '}
-                {formatAssets(selectedInstitution.total_assets_latest)}
+                Credit Union
+                {selectedInstitution.state && <> · {selectedInstitution.state}</>}
+                {selectedInstitution.total_assets != null && (
+                  <> · {fmtAssets(selectedInstitution.total_assets)}</>
+                )}
               </span>
             )}
           </div>
         </div>
         <div className="chat-header-right">
+          {selectedInstitution && onQuickCompare && (
+            <button
+              type="button"
+              className="quick-compare-btn"
+              onClick={onQuickCompare}
+            >
+              Compare CU
+            </button>
+          )}
           {showOverviewToggle && (
             <button
               type="button"
@@ -62,7 +79,7 @@ export default function ChatPanel({
               {overviewOpen ? 'Hide overview' : 'Overview'}
             </button>
           )}
-          <div className="header-badge">FFIEC &amp; NCUA call reports</div>
+          <div className="header-badge">NCUA 5300 call report intelligence</div>
         </div>
       </header>
 
@@ -73,9 +90,25 @@ export default function ChatPanel({
             <h2>Welcome to CallRpt AI</h2>
             <p>
               Ask executive-level questions about{' '}
-              {selectedInstitution ? selectedInstitution.name : 'banks and credit unions'} using FFIEC and
-              NCUA call report data.
+              {selectedInstitution ? selectedInstitution.name : 'credit unions'} using NCUA 5300 call report data.
             </p>
+
+            {/* Quick prompt chips */}
+            {selectedInstitution && (
+              <div className="quick-chips">
+                {QUICK_PROMPTS.map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    className="quick-chip"
+                    onClick={() => onSend(p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            )}
+
             <div className="suggestions">
               {suggestions.map((s, i) => (
                 <button key={i} type="button" className="suggestion-btn" onClick={() => onSend(s)}>
@@ -96,6 +129,15 @@ export default function ChatPanel({
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               ) : (
                 <p>{msg.content}</p>
+              )}
+              {/* NCUA citations */}
+              {msg.citations && msg.citations.length > 0 && (
+                <div className="message-citations">
+                  <span className="citations-label">Sources:</span>
+                  {msg.citations.map((c, ci) => (
+                    <span key={ci} className="citation-chip">{c}</span>
+                  ))}
+                </div>
               )}
               {msg.sql && (
                 <div className="sql-toggle">
@@ -148,8 +190,8 @@ export default function ChatPanel({
             onKeyDown={onKeyDown}
             placeholder={
               selectedInstitution
-                ? `Ask about ${selectedInstitution.name}...`
-                : 'Ask about banks, credit unions, or market trends...'
+                ? `Ask about ${selectedInstitution.name}…`
+                : 'Ask about credit unions, peer trends, or portfolio risk…'
             }
             rows={1}
           />
@@ -163,7 +205,7 @@ export default function ChatPanel({
           </button>
         </div>
         <div className="input-footer">
-          Data from FFIEC &amp; NCUA quarterly call reports · Prototype — not financial advice
+          Data from NCUA 5300 quarterly call reports · Prototype — not financial advice
         </div>
       </div>
     </main>

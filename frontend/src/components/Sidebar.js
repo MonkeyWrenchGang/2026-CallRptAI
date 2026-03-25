@@ -1,29 +1,64 @@
-import React from 'react';
-import { formatAssets } from '../utils/format';
+import React, { useState, useEffect, useRef } from 'react';
+import { fmtAssets } from '../utils/format';
+
+const QUICK_ACCESS = [
+  { cu_number: '5536',  name: 'Navy Federal Credit Union',        state: 'VA' },
+  { cu_number: '68435', name: 'State Employees Credit Union',     state: 'NC' },
+  { cu_number: '67808', name: 'Pentagon Federal Credit Union',    state: 'VA' },
+  { cu_number: '24692', name: 'Boeing Employees Credit Union',    state: 'WA' },
+  { cu_number: '12702', name: 'SchoolsFirst Federal Credit Union',state: 'CA' },
+  { cu_number: '66441', name: 'Golden 1 Credit Union',            state: 'CA' },
+];
 
 export default function Sidebar({
   sidebarOpen,
   onToggle,
-  searchQuery,
-  onSearchChange,
-  typeFilter,
-  onTypeFilter,
-  institutions,
   selectedInstitution,
   onSelectInstitution,
   onClearSelection,
   aiEnabled,
 }) {
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      fetch(`/api/ncua/search?q=${encodeURIComponent(query.trim())}`)
+        .then((r) => r.json())
+        .then((d) => {
+          setResults(Array.isArray(d) ? d : (d.results || []));
+          setSearching(false);
+        })
+        .catch(() => {
+          setResults([]);
+          setSearching(false);
+        });
+    }, 300);
+    return () => clearTimeout(timerRef.current);
+  }, [query]);
+
+  const handleSelect = (inst) => {
+    onSelectInstitution(inst);
+    setQuery('');
+    setResults([]);
+  };
+
+  const showQuick = !query.trim();
+  const listItems = showQuick ? QUICK_ACCESS : results;
+
   return (
     <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Institutions">
       <div className="sidebar-header">
-        <div className="logo">
-          <span className="logo-mark" aria-hidden="true">CR</span>
-          <div>
-            <h1>CallRpt AI</h1>
-            <span className="tagline">Executive Intelligence</span>
-          </div>
-        </div>
+        {sidebarOpen && <span className="sidebar-header-label">Institutions</span>}
         <button
           type="button"
           className="sidebar-toggle"
@@ -40,85 +75,74 @@ export default function Sidebar({
           <div className="sidebar-section">
             <div className="search-box">
               <label htmlFor="inst-search" className="visually-hidden">
-                Search institutions
+                Search credit unions
               </label>
               <input
                 id="inst-search"
                 type="search"
-                placeholder="Search institutions..."
-                value={searchQuery}
-                onChange={(e) => onSearchChange(e.target.value)}
+                placeholder="Search credit unions..."
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
                 autoComplete="off"
               />
-            </div>
-            <div className="filter-row" role="group" aria-label="Institution type">
-              <button
-                type="button"
-                className={`filter-btn ${typeFilter === '' ? 'active' : ''}`}
-                onClick={() => onTypeFilter('')}
-              >
-                All
-              </button>
-              <button
-                type="button"
-                className={`filter-btn ${typeFilter === 'bank' ? 'active' : ''}`}
-                onClick={() => onTypeFilter('bank')}
-              >
-                Banks
-              </button>
-              <button
-                type="button"
-                className={`filter-btn ${typeFilter === 'credit_union' ? 'active' : ''}`}
-                onClick={() => onTypeFilter('credit_union')}
-              >
-                Credit Unions
-              </button>
             </div>
           </div>
 
           {selectedInstitution && (
             <div className="selected-institution">
-              <div className="selected-label">Selected</div>
               <div className="selected-name">{selectedInstitution.name}</div>
               <div className="selected-detail">
-                {selectedInstitution.institution_type === 'bank' ? 'Bank' : 'Credit union'}
-                {' · '}
-                {selectedInstitution.city}, {selectedInstitution.state}
-                {' · '}
-                {formatAssets(selectedInstitution.total_assets_latest)}
+                {selectedInstitution.state}
+                {selectedInstitution.total_assets != null && (
+                  <> · {fmtAssets(selectedInstitution.total_assets)}</>
+                )}
               </div>
               <button type="button" className="clear-btn" onClick={onClearSelection}>
-                Clear selection
+                ✕ Clear
               </button>
             </div>
           )}
 
           <div className="institution-list">
-            {institutions.map((inst) => (
-              <div
-                key={inst.id}
-                role="button"
-                tabIndex={0}
-                className={`inst-item ${selectedInstitution?.id === inst.id ? 'selected' : ''}`}
-                onClick={() => onSelectInstitution(inst)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    onSelectInstitution(inst);
-                  }
-                }}
-              >
-                <div className="inst-name">
-                  <span className="inst-type-icon" aria-hidden="true">
-                    {inst.institution_type === 'bank' ? '🏦' : '🏧'}
-                  </span>
-                  {inst.name}
+            {showQuick && (
+              <div className="list-section-label">Quick access</div>
+            )}
+            {searching && (
+              <div className="list-section-label">Searching…</div>
+            )}
+            {!searching && !showQuick && results.length === 0 && query.trim() && (
+              <div className="list-section-label">No results</div>
+            )}
+            {listItems.map((inst) => {
+              const key = inst.cu_number || inst.id;
+              const isSelected = selectedInstitution?.cu_number === inst.cu_number ||
+                                 selectedInstitution?.id === inst.id;
+              return (
+                <div
+                  key={key}
+                  role="button"
+                  tabIndex={0}
+                  className={`inst-item ${isSelected ? 'selected' : ''}`}
+                  onClick={() => handleSelect(inst)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelect(inst);
+                    }
+                  }}
+                >
+                  <div className="inst-name">
+                    <span className="inst-type-icon" aria-hidden="true">🏧</span>
+                    {inst.name}
+                  </div>
+                  <div className="inst-meta">
+                    {inst.state}
+                    {inst.total_assets != null && <> · {fmtAssets(inst.total_assets)}</>}
+                    {inst.cu_number && <> · #{inst.cu_number}</>}
+                  </div>
                 </div>
-                <div className="inst-meta">
-                  {inst.city}, {inst.state} · {formatAssets(inst.total_assets_latest)}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <div className="sidebar-footer">

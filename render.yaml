@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: callrpt-ai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    plan: free
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false   # Set this in the Render dashboard
+      - key: DATABASE_PATH
+        value: /app/data/callreports.db
+      - key: NCUA_DB_PATH
+        value: /app/data/ncua_callreports.db
+    disk:
+      name: data
+      mountPath: /app/data
+      sizeGB: 5

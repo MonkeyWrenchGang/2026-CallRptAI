@@ -2,19 +2,10 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import OverviewRail from './components/OverviewRail';
+import ComparePanel from './components/ComparePanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
+import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
-
-const API_BASE = process.env.REACT_APP_API_URL || '';
-
-const SUGGESTIONS = [
-  'Give me an overview of the top institutions by assets',
-  'Compare bank vs credit union profitability',
-  'Who has the highest NPL ratios? Any red flags?',
-  'Show me the most efficient institutions',
-  'What does our capital adequacy look like?',
-  'Analyze the loan portfolio composition',
-];
 
 const INST_SUGGESTIONS = [
   'How are we performing overall?',
@@ -25,28 +16,202 @@ const INST_SUGGESTIONS = [
   'Break down our loan portfolio',
 ];
 
+const MARKET_SUGGESTIONS = [
+  'Give me an overview of top CUs by assets',
+  'Which credit unions have the highest ROA?',
+  'Who has the highest delinquency rates? Any red flags?',
+  'Show me the most efficient institutions',
+  'What does industry capital adequacy look like?',
+  'Analyze trends in loan-to-share ratios',
+];
+
+// ── Pulse view ────────────────────────────────────────────────────────────
+function PulseView() {
+  const [pulse, setPulse] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch('/api/ncua/pulse')
+      .then((r) => { if (!r.ok) throw new Error('Failed'); return r.json(); })
+      .then((d) => { setPulse(d); setLoading(false); })
+      .catch(() => { setError(true); setLoading(false); });
+  }, []);
+
+  if (loading) {
+    return (
+      <section className="compare-area">
+        <div className="compare-header"><h2>Pulse</h2></div>
+        <p className="compare-message">Loading market data…</p>
+      </section>
+    );
+  }
+
+  if (error) {
+    return (
+      <section className="compare-area">
+        <div className="compare-header"><h2>Pulse</h2></div>
+        <p className="compare-message error">Could not load pulse data. Is the backend running?</p>
+      </section>
+    );
+  }
+
+  const s = pulse?.summary || {};
+  const movers = pulse?.top_movers || [];
+  const radar = pulse?.risk_radar || [];
+  const nwrDist = pulse?.nwr_dist || [];
+
+  return (
+    <section className="compare-area pulse-view">
+      <div className="compare-header">
+        <h2>Market Pulse</h2>
+        {s.quarter && <span className="compare-quarter-label">{s.quarter}</span>}
+      </div>
+
+      {/* Summary KPIs */}
+      <div className="pulse-kpi-grid">
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Credit Unions</div>
+          <div className="pulse-kpi-value mono">{s.cu_count?.toLocaleString() || '—'}</div>
+        </div>
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Total Assets</div>
+          <div className="pulse-kpi-value mono">{fmtAssets(s.total_assets)}</div>
+        </div>
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Total Members</div>
+          <div className="pulse-kpi-value mono">{fmtMembers(s.total_members)}</div>
+        </div>
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Median ROA</div>
+          <div className="pulse-kpi-value mono">{fmtPct(s.median_roa)}</div>
+        </div>
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Median NWR</div>
+          <div className="pulse-kpi-value mono">{fmtPct(s.median_nwr)}</div>
+        </div>
+        <div className="pulse-kpi">
+          <div className="pulse-kpi-label">Median Delinquency</div>
+          <div className="pulse-kpi-value mono">{fmtPct(s.median_delinquency)}</div>
+        </div>
+        {s.below_10pct_nwr != null && (
+          <div className="pulse-kpi pulse-kpi-warn">
+            <div className="pulse-kpi-label">NWR &lt; 10%</div>
+            <div className="pulse-kpi-value mono">{s.below_10pct_nwr.toLocaleString()}</div>
+          </div>
+        )}
+        {s.below_7pct_nwr != null && (
+          <div className="pulse-kpi pulse-kpi-danger">
+            <div className="pulse-kpi-label">NWR &lt; 7%</div>
+            <div className="pulse-kpi-value mono">{s.below_7pct_nwr.toLocaleString()}</div>
+          </div>
+        )}
+      </div>
+
+      {/* NWR distribution */}
+      {nwrDist.length > 0 && (
+        <div className="pulse-section">
+          <h3>Net Worth Ratio Distribution</h3>
+          <div className="nwr-dist">
+            {nwrDist.map((band) => (
+              <div key={band.band} className="nwr-band">
+                <div className="nwr-band-label">{band.band}</div>
+                <div className="nwr-band-bar-wrap">
+                  <div
+                    className="nwr-band-bar"
+                    style={{ width: `${Math.min(band.pct * 2, 100)}%` }}
+                  />
+                </div>
+                <div className="nwr-band-count mono">{band.count.toLocaleString()}</div>
+                <div className="nwr-band-pct mono">({band.pct.toFixed(1)}%)</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="pulse-two-col">
+        {/* Top movers */}
+        {movers.length > 0 && (
+          <div className="pulse-section">
+            <h3>Top ROA Movers (QoQ)</h3>
+            <table className="pulse-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>State</th>
+                  <th>ROA</th>
+                  <th>Change</th>
+                </tr>
+              </thead>
+              <tbody>
+                {movers.slice(0, 10).map((m) => (
+                  <tr key={m.cu_number}>
+                    <td>{m.name}</td>
+                    <td>{m.state}</td>
+                    <td className="mono">{fmtPct(m.roa_curr)}</td>
+                    <td className={`mono ${m.roa_delta >= 0 ? 'text-pos' : 'text-neg'}`}>
+                      {fmtPctChange(m.roa_delta)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+
+        {/* Risk radar */}
+        {radar.length > 0 && (
+          <div className="pulse-section">
+            <h3>Risk Radar</h3>
+            <table className="pulse-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>State</th>
+                  <th>NWR</th>
+                  <th>Delinquency</th>
+                </tr>
+              </thead>
+              <tbody>
+                {radar.slice(0, 10).map((r) => (
+                  <tr key={r.cu_number}>
+                    <td>{r.name}</td>
+                    <td>{r.state}</td>
+                    <td className={`mono ${r.net_worth_ratio < 0.08 ? 'text-neg' : ''}`}>
+                      {fmtPct(r.net_worth_ratio)}
+                    </td>
+                    <td className={`mono ${r.delinquency_ratio > 0.02 ? 'text-neg' : ''}`}>
+                      {fmtPct(r.delinquency_ratio)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+// ── App root ──────────────────────────────────────────────────────────────
 export default function App() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sessionId, setSessionId] = useState(null);
   const [aiEnabled, setAiEnabled] = useState(false);
 
-  const [institutions, setInstitutions] = useState([]);
-  const [selectedInstitution, setSelectedInstitution] = useState(null);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState('');
+  const [activeCU, setActiveCU] = useState(null);           // cu_number string
+  const [selectedInstitution, setSelectedInstitution] = useState(null); // full inst object
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSqlFor, setShowSqlFor] = useState(null);
-
-  const [instSummary, setInstSummary] = useState(null);
-  const [peersList, setPeersList] = useState([]);
-  const [overviewLoading, setOverviewLoading] = useState(false);
-  const [overviewError, setOverviewError] = useState(false);
 
   const [overviewDrawerOpen, setOverviewDrawerOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth > 900
   );
+  const [activeView, setActiveView] = useState('ask');
 
   const isNarrow = useMediaQuery('(max-width: 900px)');
 
@@ -57,95 +222,32 @@ export default function App() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, []);
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages, scrollToBottom]);
+  useEffect(() => { scrollToBottom(); }, [messages, scrollToBottom]);
 
+  // Close drawer on Escape (narrow)
   useEffect(() => {
     if (!isNarrow || !overviewDrawerOpen) return undefined;
-    const onKey = (e) => {
-      if (e.key === 'Escape') setOverviewDrawerOpen(false);
-    };
+    const onKey = (e) => { if (e.key === 'Escape') setOverviewDrawerOpen(false); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isNarrow, overviewDrawerOpen]);
 
+  // Check health / AI status
   useEffect(() => {
-    fetch(`${API_BASE}/api/health`)
+    fetch('/api/health')
       .then((r) => r.json())
       .then((d) => setAiEnabled(d.ai_enabled))
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetch(`${API_BASE}/api/institutions/search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          search: searchQuery,
-          institution_type: typeFilter,
-          limit: 100,
-        }),
-      })
-        .then((r) => r.json())
-        .then((d) => setInstitutions(d.institutions || []))
-        .catch(() => {});
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery, typeFilter]);
-
+  // Auto-open/close drawer on viewport change
   useEffect(() => {
     if (!isNarrow) {
       setOverviewDrawerOpen(true);
-  } else {
+    } else {
       setOverviewDrawerOpen(false);
     }
-  }, [isNarrow, selectedInstitution?.id]);
-
-  useEffect(() => {
-    if (!selectedInstitution) {
-      setInstSummary(null);
-      setPeersList([]);
-      setOverviewError(false);
-      return;
-    }
-
-    let cancelled = false;
-    setOverviewLoading(true);
-    setOverviewError(false);
-
-    const id = selectedInstitution.id;
-    Promise.all([
-      fetch(`${API_BASE}/api/institutions/${id}`).then((r) => {
-        if (!r.ok) throw new Error('detail');
-        return r.json();
-      }),
-      fetch(`${API_BASE}/api/institutions/${id}/peers`).then((r) => {
-        if (!r.ok) throw new Error('peers');
-        return r.json();
-      }),
-    ])
-      .then(([detail, peerData]) => {
-        if (cancelled) return;
-        setInstSummary(detail);
-        setPeersList(peerData.peers || []);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setInstSummary(null);
-          setPeersList([]);
-          setOverviewError(true);
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setOverviewLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selectedInstitution]);
+  }, [isNarrow, activeCU]);
 
   const sendMessage = async (text) => {
     if (!text.trim()) return;
@@ -156,13 +258,12 @@ export default function App() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE}/api/chat`, {
+      const response = await fetch('/api/ncua/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           message: text,
-          session_id: sessionId,
-          institution_id: selectedInstitution?.id || null,
+          cu_number: activeCU || null,
           history: messages.slice(-10).map((m) => ({
             role: m.role,
             content: m.content,
@@ -171,14 +272,13 @@ export default function App() {
       });
       const data = await response.json();
 
-      setSessionId(data.session_id);
       setMessages((prev) => [
         ...prev,
         {
           role: 'assistant',
-          content: data.answer,
+          content: data.answer || data.message || 'No response.',
+          citations: data.citations || [],
           sql: data.sql_query,
-          data: data.data,
           source: data.source,
           timestamp: new Date(),
         },
@@ -188,8 +288,7 @@ export default function App() {
         ...prev,
         {
           role: 'assistant',
-          content:
-            'Sorry, I had trouble connecting to the server. Make sure the backend is running on port 8000.',
+          content: 'Sorry, I had trouble connecting to the server. Make sure the backend is running on port 8001.',
           timestamp: new Date(),
         },
       ]);
@@ -208,40 +307,55 @@ export default function App() {
 
   const selectInstitution = (inst) => {
     setSelectedInstitution(inst);
+    setActiveCU(inst.cu_number || null);
     setMessages([]);
-    setSessionId(null);
+    setShowSqlFor(null);
     if (isNarrow) setOverviewDrawerOpen(false);
   };
 
   const clearSelection = () => {
     setSelectedInstitution(null);
+    setActiveCU(null);
     setMessages([]);
-    setSessionId(null);
-    setInstSummary(null);
-    setPeersList([]);
+    setShowSqlFor(null);
   };
 
-  const suggestions = selectedInstitution ? INST_SUGGESTIONS : SUGGESTIONS;
-  const latestFinancial = instSummary?.financials?.[0] ?? null;
-
-  const showRail = !!selectedInstitution;
+  const suggestions = activeCU ? INST_SUGGESTIONS : MARKET_SUGGESTIONS;
+  const showRail = !!activeCU;
   const railVisible = !isNarrow || overviewDrawerOpen;
 
   return (
     <div className="app">
       <header className="app-topbar">
         <div className="topbar-brand">
-          <span className="topbar-mark" aria-hidden="true">
-            CR
-          </span>
+          <span className="topbar-mark" aria-hidden="true">CR</span>
           <div>
             <span className="topbar-title">CallRpt AI</span>
-            <span className="topbar-sub">FFIEC &amp; NCUA</span>
+            <span className="topbar-sub">NCUA 5300 · CU Intelligence</span>
           </div>
         </div>
         <nav className="topbar-nav" aria-label="Primary">
-          <span className="topbar-nav-item">Overview</span>
-          <span className="topbar-nav-item active">Ask</span>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'pulse' ? 'active' : ''}`}
+            onClick={() => setActiveView('pulse')}
+          >
+            Pulse
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'ask' ? 'active' : ''}`}
+            onClick={() => setActiveView('ask')}
+          >
+            Ask
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'compare' ? 'active' : ''}`}
+            onClick={() => setActiveView('compare')}
+          >
+            Compare
+          </button>
         </nav>
         <div className="topbar-right">
           <span className={`topbar-pill ${aiEnabled ? 'on' : ''}`}>
@@ -254,11 +368,6 @@ export default function App() {
         <Sidebar
           sidebarOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-          typeFilter={typeFilter}
-          onTypeFilter={setTypeFilter}
-          institutions={institutions}
           selectedInstitution={selectedInstitution}
           onSelectInstitution={selectInstitution}
           onClearSelection={clearSelection}
@@ -275,41 +384,53 @@ export default function App() {
             />
           )}
 
-          <div className="hybrid-main">
-            <ChatPanel
-              sidebarOpen={sidebarOpen}
-              onOpenSidebar={() => setSidebarOpen(true)}
-              selectedInstitution={selectedInstitution}
-              messages={messages}
-              loading={loading}
-              input={input}
-              onInputChange={setInput}
-              onSend={sendMessage}
-              onKeyDown={handleKeyDown}
-              suggestions={suggestions}
-              showSqlFor={showSqlFor}
-              onToggleSql={setShowSqlFor}
-              inputRef={inputRef}
-              messagesEndRef={messagesEndRef}
-              showOverviewToggle={showRail && isNarrow}
-              overviewOpen={overviewDrawerOpen}
-              onToggleOverview={() => setOverviewDrawerOpen((o) => !o)}
-            />
+          {activeView === 'pulse' ? (
+            <PulseView />
+          ) : activeView === 'ask' ? (
+            <div className="hybrid-main">
+              <ChatPanel
+                sidebarOpen={sidebarOpen}
+                onOpenSidebar={() => setSidebarOpen(true)}
+                selectedInstitution={selectedInstitution}
+                messages={messages}
+                loading={loading}
+                input={input}
+                onInputChange={setInput}
+                onSend={sendMessage}
+                onKeyDown={handleKeyDown}
+                suggestions={suggestions}
+                showSqlFor={showSqlFor}
+                onToggleSql={setShowSqlFor}
+                inputRef={inputRef}
+                messagesEndRef={messagesEndRef}
+                showOverviewToggle={showRail && isNarrow}
+                overviewOpen={overviewDrawerOpen}
+                onToggleOverview={() => setOverviewDrawerOpen((o) => !o)}
+                onQuickCompare={() => setActiveView('compare')}
+              />
 
-            {showRail && (
-              <div
-                className={`overview-rail-wrap ${railVisible ? 'is-open' : ''} ${isNarrow ? 'is-drawer' : ''}`}
-              >
-                <OverviewRail
-                  loading={overviewLoading}
-                  error={overviewError}
-                  institution={instSummary?.institution || selectedInstitution}
-                  latestFinancial={latestFinancial}
-                  peers={peersList}
-                />
-              </div>
-            )}
-          </div>
+              {showRail && (
+                <div
+                  className={`overview-rail-wrap ${railVisible ? 'is-open' : ''} ${isNarrow ? 'is-drawer' : ''}`}
+                >
+                  <OverviewRail
+                    activeCU={activeCU}
+                    onAddCompare={() => setActiveView('compare')}
+                    onOpenCompare={() => setActiveView('compare')}
+                  />
+                </div>
+              )}
+            </div>
+          ) : (
+            /* compare view */
+            <ComparePanel
+              activeCU={activeCU}
+              onSendChat={(text) => {
+                setActiveView('ask');
+                sendMessage(text);
+              }}
+            />
+          )}
         </div>
       </div>
     </div>

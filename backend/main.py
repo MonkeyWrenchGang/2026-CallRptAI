@@ -10,6 +10,9 @@ import uuid
 from typing import Optional
 from contextlib import asynccontextmanager
 
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -17,6 +20,7 @@ from pydantic import BaseModel
 
 from database import init_db, DATABASE_PATH
 from ingest import seed_sample_data
+from ncua_api import router as ncua_router
 from query_engine import (
     SCHEMA_CONTEXT,
     SYSTEM_PROMPT_SQL,
@@ -25,6 +29,14 @@ from query_engine import (
     get_institution_context,
     list_institutions,
     get_institution_summary,
+)
+from ncua_query_engine import (
+    NCUA_SCHEMA_CONTEXT,
+    NCUA_SYSTEM_PROMPT_SQL,
+    NCUA_SYSTEM_PROMPT_INTERPRET,
+    execute_ncua_sql,
+    get_ncua_institution_context,
+    list_ncua_institutions,
 )
 
 # ── Set database path ───────────────────────────────────────────────────
@@ -75,6 +87,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(ncua_router)
+
 
 # ── Request/Response Models ─────────────────────────────────────────────
 class ChatRequest(BaseModel):
@@ -97,6 +111,24 @@ class InstitutionSearchRequest(BaseModel):
     institution_type: str = ""
     state: str = ""
     limit: int = 50
+
+
+class CompareInstitutionsRequest(BaseModel):
+    institution_ids: list[int]
+    report_date: Optional[str] = None
+    institution_type: str = "credit_union"
+
+
+class SuggestedPeersRequest(BaseModel):
+    institution_id: int
+    limit: int = 5
+
+
+class NCUAChatRequest(BaseModel):
+    message: str
+    cu_number: Optional[str] = None          # NCUA charter number
+    history: list = []                        # [{"role": "user"|"assistant", "content": "..."}]
+    session_id: Optional[str] = None
 
 
 # ── Mock response engine (when no API key) ──────────────────────────────
@@ -516,14 +548,20 @@ async def get_peers(institution_id: int):
     if not latest:
         return {"peers": [], "institution": inst}
 
-    # Find peer group by asset size and type
+    # Find peer group by asset size and type on the latest report date
+    latest_report_sql = "SELECT MAX(report_date) AS latest_report_date FROM financial_data"
+    latest_date_result = execute_sql(latest_report_sql)
+    latest_report_date = (
+        latest_date_result.get("rows", [{}])[0].get("latest_report_date") or "2024-12-31"
+    )
+
     sql = f"""
         SELECT i.id, i.name, i.state,
                f.total_assets, f.roa, f.roe, f.net_interest_margin,
                f.efficiency_ratio, f.npl_ratio, f.tier1_capital_ratio
         FROM financial_data f
         JOIN institutions i ON f.institution_id = i.id
-        WHERE f.report_date = '2024-12-31'
+        WHERE f.report_date = '{latest_report_date}'
           AND i.institution_type = '{inst["institution_type"]}'
           AND f.total_assets BETWEEN {latest["total_assets"] * 0.5} AND {latest["total_assets"] * 2.0}
           AND i.id != {institution_id}
@@ -531,7 +569,435 @@ async def get_peers(institution_id: int):
         LIMIT 20
     """
     data = execute_sql(sql)
-    return {"peers": data.get("rows", []), "institution": inst, "latest": dict(latest)}
+    return {
+        "peers": data.get("rows", []),
+        "institution": inst,
+        "latest": dict(latest),
+        "report_date": latest_report_date,
+    }
+
+
+@app.post("/api/institutions/suggested-peers")
+async def suggested_peers(request: SuggestedPeersRequest):
+    """Get suggested peers for a base institution (asset-band + same type)."""
+    if request.limit < 1 or request.limit > 25:
+        raise HTTPException(status_code=400, detail="limit must be between 1 and 25")
+
+    summary = get_institution_summary(request.institution_id)
+    inst = summary.get("institution")
+    latest = summary["financials"][0] if summary.get("financials") else None
+    if not inst or not latest:
+        raise HTTPException(status_code=404, detail="Institution not found or has no financial data")
+
+    latest_report_sql = "SELECT MAX(report_date) AS latest_report_date FROM financial_data"
+    latest_date_result = execute_sql(latest_report_sql)
+    latest_report_date = (
+        latest_date_result.get("rows", [{}])[0].get("latest_report_date") or latest["report_date"]
+    )
+
+    sql = f"""
+        SELECT i.id, i.name, i.state, i.cert_or_cu_number,
+               f.total_assets, f.roa, f.net_worth_ratio, f.efficiency_ratio, f.npl_ratio
+        FROM institutions i
+        JOIN financial_data f ON f.institution_id = i.id
+        WHERE i.institution_type = '{inst["institution_type"]}'
+          AND f.report_date = '{latest_report_date}'
+          AND i.id != {int(request.institution_id)}
+          AND f.total_assets BETWEEN {float(latest["total_assets"]) * 0.5} AND {float(latest["total_assets"]) * 2.0}
+        ORDER BY
+          CASE WHEN i.state = '{inst["state"]}' THEN 0 ELSE 1 END,
+          ABS(f.total_assets - {float(latest["total_assets"])})
+        LIMIT {int(request.limit)}
+    """
+    data = execute_sql(sql)
+    return {
+        "base_institution": inst,
+        "report_date": latest_report_date,
+        "peers": data.get("rows", []),
+    }
+
+
+@app.post("/api/institutions/compare")
+async def compare_institutions(request: CompareInstitutionsRequest):
+    """Compare multiple institutions on a single report date."""
+    if not request.institution_ids:
+        raise HTTPException(status_code=400, detail="institution_ids cannot be empty")
+
+    unique_ids = sorted({int(x) for x in request.institution_ids if int(x) > 0})
+    if len(unique_ids) > 8:
+        raise HTTPException(status_code=400, detail="max 8 institutions for compare")
+
+    if request.report_date:
+        report_date = request.report_date
+    else:
+        latest_report_sql = "SELECT MAX(report_date) AS latest_report_date FROM financial_data"
+        latest_date_result = execute_sql(latest_report_sql)
+        report_date = latest_date_result.get("rows", [{}])[0].get("latest_report_date")
+        if not report_date:
+            raise HTTPException(status_code=404, detail="No financial data found")
+
+    ids_sql = ",".join(str(i) for i in unique_ids)
+    sql = f"""
+        SELECT i.id, i.name, i.institution_type, i.cert_or_cu_number, i.city, i.state,
+               f.report_date, f.total_assets, f.total_loans, f.total_deposits, f.member_count,
+               f.roa, f.roe, f.net_interest_margin, f.efficiency_ratio, f.npl_ratio,
+               f.net_worth_ratio, f.tier1_capital_ratio, f.loan_to_deposit_ratio, f.net_income
+        FROM institutions i
+        LEFT JOIN financial_data f
+               ON f.institution_id = i.id AND f.report_date = '{report_date}'
+        WHERE i.id IN ({ids_sql})
+          AND i.institution_type = '{request.institution_type}'
+        ORDER BY f.total_assets DESC
+    """
+    result = execute_sql(sql)
+    rows = result.get("rows", [])
+    if not rows:
+        raise HTTPException(status_code=404, detail="No institutions found for compare")
+
+    return {
+        "report_date": report_date,
+        "institution_type": request.institution_type,
+        "rows": rows,
+    }
+
+
+# ── NCUA mock response (no API key) ─────────────────────────────────────
+def _ncua_mock_response(message: str, cu_number: Optional[str] = None) -> dict:
+    """Template-based fallback for NCUA chat when no Claude API key is set."""
+    msg_lower = message.lower()
+    sql = None
+    data = None
+
+    if any(kw in msg_lower for kw in ["nwr", "net worth", "capital", "capitalized", "well cap"]):
+        if cu_number:
+            sql = f"""
+                SELECT i.name, f.report_date, f.quarter_label,
+                       ROUND(f.net_worth_ratio * 100, 2) AS nwr_pct,
+                       f.camel_class,
+                       ROUND(f.total_equity / 1000000.0, 2) AS equity_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 8
+            """
+        else:
+            sql = """
+                SELECT camel_class, COUNT(*) AS cu_count,
+                       ROUND(AVG(net_worth_ratio) * 100, 2) AS avg_nwr_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+                GROUP BY camel_class ORDER BY cu_count DESC
+            """
+    elif any(kw in msg_lower for kw in ["delinquency", "delinquent", "past due", "credit quality"]):
+        if cu_number:
+            sql = f"""
+                SELECT i.name, f.report_date, f.quarter_label,
+                       ROUND(f.delinquency_ratio * 100, 2) AS delinquency_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 8
+            """
+        else:
+            sql = """
+                SELECT i.name, i.state,
+                       ROUND(f.delinquency_ratio * 100, 2) AS delinquency_pct,
+                       ROUND(f.total_assets / 1000000.0, 1) AS assets_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+                ORDER BY f.delinquency_ratio DESC LIMIT 10
+            """
+    elif any(kw in msg_lower for kw in ["member", "membership", "growth"]):
+        if cu_number:
+            sql = f"""
+                SELECT f.report_date, f.quarter_label, f.member_count,
+                       ROUND(f.total_assets / 1000000.0, 2) AS assets_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 8
+            """
+        else:
+            sql = """
+                SELECT i.name, i.state, f.member_count,
+                       ROUND(f.total_assets / 1000000.0, 1) AS assets_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+                ORDER BY f.member_count DESC LIMIT 10
+            """
+    elif any(kw in msg_lower for kw in ["roa", "profit", "income", "earning", "return"]):
+        if cu_number:
+            sql = f"""
+                SELECT f.report_date, f.quarter_label,
+                       ROUND(f.roa * 100, 2) AS roa_pct,
+                       ROUND(f.net_income / 1000000.0, 2) AS net_income_millions,
+                       ROUND(f.net_interest_margin * 100, 2) AS nim_pct,
+                       ROUND(f.efficiency_ratio * 100, 1) AS efficiency_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 8
+            """
+        else:
+            sql = """
+                SELECT i.name, i.state,
+                       ROUND(f.roa * 100, 2) AS roa_pct,
+                       ROUND(f.net_income / 1000000.0, 2) AS net_income_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+                ORDER BY f.roa DESC LIMIT 10
+            """
+    elif any(kw in msg_lower for kw in ["loan", "share", "loan-to-share", "lts"]):
+        if cu_number:
+            sql = f"""
+                SELECT f.report_date, f.quarter_label,
+                       ROUND(f.total_loans / 1000000.0, 2) AS loans_millions,
+                       ROUND(f.total_shares / 1000000.0, 2) AS shares_millions,
+                       ROUND(f.loan_to_share_ratio * 100, 1) AS lts_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 8
+            """
+        else:
+            sql = """
+                SELECT i.name, i.state,
+                       ROUND(f.loan_to_share_ratio * 100, 1) AS lts_pct,
+                       ROUND(f.total_loans / 1000000.0, 1) AS loans_millions
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+                ORDER BY f.loan_to_share_ratio DESC LIMIT 10
+            """
+    else:
+        # General overview
+        if cu_number:
+            sql = f"""
+                SELECT f.report_date, f.quarter_label,
+                       ROUND(f.total_assets / 1000000.0, 2) AS assets_millions,
+                       ROUND(f.total_loans / 1000000.0, 2) AS loans_millions,
+                       ROUND(f.total_shares / 1000000.0, 2) AS shares_millions,
+                       f.member_count,
+                       ROUND(f.roa * 100, 2) AS roa_pct,
+                       ROUND(f.net_worth_ratio * 100, 2) AS nwr_pct,
+                       ROUND(f.delinquency_ratio * 100, 2) AS delinquency_pct,
+                       ROUND(f.loan_to_share_ratio * 100, 1) AS lts_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE i.cu_number = '{cu_number}'
+                ORDER BY f.report_date DESC LIMIT 4
+            """
+        else:
+            sql = """
+                SELECT COUNT(DISTINCT i.id) AS total_cus,
+                       ROUND(SUM(f.total_assets) / 1e9, 2) AS total_assets_billions,
+                       ROUND(AVG(f.roa) * 100, 2) AS avg_roa_pct,
+                       ROUND(AVG(f.net_worth_ratio) * 100, 2) AS avg_nwr_pct,
+                       ROUND(AVG(f.delinquency_ratio) * 100, 2) AS avg_delinquency_pct
+                FROM financial_data f
+                JOIN institutions i ON f.institution_id = i.id
+                WHERE f.report_date = (SELECT MAX(report_date) FROM financial_data)
+            """
+
+    if sql:
+        data = execute_ncua_sql(sql)
+
+    if data and data.get("rows"):
+        table = _format_table_text(data["columns"], data["rows"][:10])
+        answer = (
+            f"Here's what I found in the NCUA 5300 call report data:\n\n{table}\n\n"
+            "**Note:** This is running without a Claude API key — you're seeing template-based "
+            "analysis. Add your `ANTHROPIC_API_KEY` to `.env` for full AI-powered executive "
+            "insights, including trend analysis, peer benchmarking, and regulatory commentary."
+        )
+    else:
+        answer = (
+            "Welcome to **CallRpt AI — NCUA Edition**.\n\n"
+            "I can help you analyse NCUA 5300 call report data for 5,400+ credit unions "
+            "(2020–2025). Try asking:\n\n"
+            "- \"What's our NWR trend over the last 8 quarters?\"\n"
+            "- \"Are we well capitalized?\"\n"
+            "- \"Show member growth for the past two years\"\n"
+            "- \"How does our delinquency rate compare to peers?\"\n"
+            "- \"What is our loan-to-share ratio?\"\n"
+            "- \"Show our ROA vs the prior year\"\n\n"
+            "Select a credit union (charter number) from the sidebar for CU-specific analysis.\n\n"
+            "**Note:** Add your `ANTHROPIC_API_KEY` for full Claude-powered analysis."
+        )
+
+    return {"answer": answer, "sql": sql, "data": data}
+
+
+# ── NCUA Claude pipeline ─────────────────────────────────────────────────
+def ncua_claude_chat(
+    message: str,
+    cu_number: Optional[str] = None,
+    history: Optional[list] = None,
+) -> dict:
+    """
+    Full Claude-powered NCUA analysis pipeline.
+
+    1. Build context (schema + CU KPIs).
+    2. Ask Claude to generate SQL.
+    3. Execute SQL against ncua_callreports.db.
+    4. Ask Claude to interpret results for a CU executive.
+    """
+    if not claude_client:
+        return _ncua_mock_response(message, cu_number)
+
+    cu_context = get_ncua_institution_context(cu_number)
+
+    # ── Step 1: Generate SQL ────────────────────────────────────────────
+    sql_messages = []
+    if history:
+        for h in (history or [])[-6:]:
+            sql_messages.append({"role": h["role"], "content": h["content"]})
+
+    sql_messages.append({
+        "role": "user",
+        "content": (
+            f"Database schema:\n{NCUA_SCHEMA_CONTEXT}\n\n"
+            f"Credit union context:\n{cu_context}\n\n"
+            f"User question: {message}\n\n"
+            "Generate a SQL query to answer this question. "
+            "Return only the SQL in ```sql``` fences."
+        ),
+    })
+
+    sql_response = claude_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=1024,
+        system=NCUA_SYSTEM_PROMPT_SQL,
+        messages=sql_messages,
+    )
+    sql_text = sql_response.content[0].text
+
+    # Extract SQL from fences
+    sql_match = re.search(r'```sql\s*(.*?)\s*```', sql_text, re.DOTALL)
+    if not sql_match:
+        if "CANNOT_ANSWER" in sql_text:
+            return {
+                "answer": sql_text.replace(
+                    "CANNOT_ANSWER:",
+                    "I can't answer that from the available NCUA data:"
+                ),
+                "sql": None,
+                "data": None,
+            }
+        sql_query = sql_text.strip()
+    else:
+        sql_query = sql_match.group(1).strip()
+
+    # ── Step 2: Execute SQL ─────────────────────────────────────────────
+    data = execute_ncua_sql(sql_query)
+
+    if data.get("error"):
+        # Ask Claude to fix the query
+        retry_messages = sql_messages + [
+            {"role": "assistant", "content": sql_text},
+            {
+                "role": "user",
+                "content": (
+                    f"That query failed with error: {data['error']}. "
+                    "Please correct the SQL and try again."
+                ),
+            },
+        ]
+        retry_resp = claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1024,
+            system=NCUA_SYSTEM_PROMPT_SQL,
+            messages=retry_messages,
+        )
+        retry_text = retry_resp.content[0].text
+        retry_match = re.search(r'```sql\s*(.*?)\s*```', retry_text, re.DOTALL)
+        if retry_match:
+            sql_query = retry_match.group(1).strip()
+            data = execute_ncua_sql(sql_query)
+
+    # ── Step 3: Interpret results ───────────────────────────────────────
+    if data.get("rows"):
+        result_summary = json.dumps(data["rows"][:20], indent=2, default=str)
+
+        interpret_messages = [{
+            "role": "user",
+            "content": (
+                f'The credit union executive asked: "{message}"\n\n'
+                f"{cu_context}\n\n"
+                f"I ran this NCUA 5300 query:\n```sql\n{sql_query}\n```\n\n"
+                f"Results ({data['row_count']} rows, dollar values are in actual dollars):\n"
+                f"{result_summary}\n\n"
+                "Please provide an executive-level analysis of these results. "
+                "Be concise and insightful. Use credit union terminology. "
+                "Convert dollar amounts to millions or billions for readability."
+            ),
+        }]
+
+        interpret_resp = claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2048,
+            system=NCUA_SYSTEM_PROMPT_INTERPRET,
+            messages=interpret_messages,
+        )
+        answer = interpret_resp.content[0].text
+    else:
+        answer = (
+            "I wasn't able to find relevant data for that question in the NCUA database. "
+            "Could you try rephrasing, or ask about a specific metric such as net worth ratio, "
+            "delinquency rate, loan-to-share ratio, member growth, ROA, or NIM?"
+        )
+
+    return {"answer": answer, "sql": sql_query, "data": data}
+
+
+# ── NCUA API Routes ──────────────────────────────────────────────────────
+
+@app.post("/api/ncua/chat", response_model=ChatResponse)
+async def ncua_chat(request: NCUAChatRequest):
+    """
+    NCUA 5300 chat endpoint — ask questions about real NCUA call report data.
+
+    Accepts a natural-language question, an optional NCUA charter number
+    (cu_number), and conversation history.  Returns an AI-generated executive
+    analysis backed by live SQL against the 5,400-CU dataset.
+    """
+    session_id = request.session_id or str(uuid.uuid4())
+
+    result = ncua_claude_chat(
+        message=request.message,
+        cu_number=request.cu_number,
+        history=request.history,
+    )
+
+    return ChatResponse(
+        answer=result["answer"],
+        sql_query=result.get("sql"),
+        data=result.get("data"),
+        session_id=session_id,
+        source="claude" if HAS_ANTHROPIC else "mock",
+    )
+
+
+@app.post("/api/ncua/institutions/search")
+async def ncua_search_institutions(request: InstitutionSearchRequest):
+    """Search NCUA credit unions by name and/or state."""
+    results = list_ncua_institutions(
+        search=request.search,
+        state=request.state,
+        limit=request.limit,
+    )
+    return {"institutions": results, "count": len(results)}
+
+
+@app.get("/api/ncua/institutions/{cu_number}/context")
+async def ncua_institution_context(cu_number: str):
+    """Return the KPI context string for a given NCUA charter number."""
+    ctx = get_ncua_institution_context(cu_number)
+    return {"cu_number": cu_number, "context": ctx}
 
 
 # ── Mount static files (React build) ───────────────────────────────────
