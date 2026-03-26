@@ -1,14 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fmtAssets } from '../utils/format';
+import { fmtAssets, fmtMembers, fmtRatio } from '../utils/format';
 
-const QUICK_ACCESS = [
-  { cu_number: '5536',  name: 'Navy Federal Credit Union',        state: 'VA' },
-  { cu_number: '66310', name: "State Employees' Credit Union",    state: 'NC' },
-  { cu_number: '227',   name: 'Pentagon Federal Credit Union',    state: 'VA' },
-  { cu_number: '62604', name: 'Boeing Employees Credit Union',    state: 'WA' },
-  { cu_number: '24212', name: 'SchoolsFirst Federal Credit Union',state: 'CA' },
-  { cu_number: '61650', name: 'The Golden 1 Credit Union',        state: 'CA' },
-];
+const QUICK_CU_NUMBERS = ['5536', '66310', '227', '62604', '24212', '61650'];
 
 export default function Sidebar({
   sidebarOpen,
@@ -21,7 +14,16 @@ export default function Sidebar({
   const [query, setQuery] = useState('');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
+  const [quickData, setQuickData] = useState([]);
   const timerRef = useRef(null);
+
+  // Fetch quick access data on mount
+  useEffect(() => {
+    fetch(`/api/ncua/quick-access?cu_numbers=${QUICK_CU_NUMBERS.join(',')}`)
+      .then((r) => r.json())
+      .then((d) => setQuickData(d.results || []))
+      .catch(() => setQuickData([]));
+  }, []);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -53,7 +55,7 @@ export default function Sidebar({
   };
 
   const showQuick = !query.trim();
-  const listItems = showQuick ? QUICK_ACCESS : results;
+  const listItems = showQuick ? quickData : results;
 
   return (
     <aside className={`sidebar ${sidebarOpen ? 'open' : 'closed'}`} aria-label="Institutions">
@@ -117,6 +119,7 @@ export default function Sidebar({
               const key = inst.cu_number || inst.id;
               const isSelected = selectedInstitution?.cu_number === inst.cu_number ||
                                  selectedInstitution?.id === inst.id;
+              const hasMetrics = inst.total_assets != null;
               return (
                 <div
                   key={key}
@@ -132,10 +135,19 @@ export default function Sidebar({
                   }}
                 >
                   <div className="inst-name">{inst.name}</div>
-                  <div className="inst-meta">
-                    {inst.state}
-                    {inst.total_assets != null && <> · {fmtAssets(inst.total_assets)}</>}
-                  </div>
+                  {hasMetrics ? (
+                    <div className="inst-metrics">
+                      <span className="inst-metric">{fmtAssets(inst.total_assets)}</span>
+                      {inst.member_count != null && (
+                        <span className="inst-metric">{fmtMembers(inst.member_count)} mbrs</span>
+                      )}
+                      {inst.net_worth_ratio != null && (
+                        <span className="inst-metric">NW {fmtRatio(inst.net_worth_ratio)}</span>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="inst-meta">{inst.state}</div>
+                  )}
                 </div>
               );
             })}

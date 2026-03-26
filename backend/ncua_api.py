@@ -545,6 +545,37 @@ def search_suggest(
         return {"results": rows_as_dicts(rows)}
 
 
+# ── /quick-access (bulk lookup for sidebar) ───────────────────────────────
+
+@router.get("/quick-access")
+def quick_access(
+    cu_numbers: str = Query(..., description="Comma-separated CU numbers"),
+):
+    """Return key metrics for a set of CU numbers (sidebar quick access)."""
+    nums = [n.strip() for n in cu_numbers.split(",") if n.strip()]
+    if not nums:
+        return {"results": []}
+
+    placeholders = ",".join("?" for _ in nums)
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+        rows = conn.execute(f"""
+            SELECT i.cu_number, i.name, i.state, i.city,
+                   ROUND(f.total_assets, 0)        AS total_assets,
+                   f.member_count,
+                   ROUND(f.roa, 6)                  AS roa,
+                   ROUND(f.net_worth_ratio, 6)      AS net_worth_ratio,
+                   ROUND(f.delinquency_ratio, 6)    AS delinquency_ratio,
+                   f.camel_class
+            FROM institutions i
+            LEFT JOIN financial_data f
+                   ON f.institution_id = i.id AND f.quarter_label = ?
+            WHERE i.cu_number IN ({placeholders})
+            ORDER BY f.total_assets DESC NULLS LAST
+        """, (latest_q, *nums)).fetchall()
+        return {"results": rows_as_dicts(rows)}
+
+
 # ── /institutions/{cu_number}/peers ───────────────────────────────────────
 
 @router.get("/institutions/{cu_number}/peers")
