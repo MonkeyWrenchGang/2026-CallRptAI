@@ -4,7 +4,17 @@ import { fmtPct, fmtMembers } from '../utils/format';
 const TEAL = '#1D9E75';
 const COLORS = ['#1D9E75', '#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
-const DEFAULT_CU_NUMBERS = ['5536', '67808', '24692'];
+const DEFAULT_CU_NUMBERS = ['5536', '227', '62604']; // Navy Federal, Pentagon, Boeing Employees
+
+// Fallback name cache so chips show names before API data loads
+const NAME_CACHE = {
+  '5536':  'Navy Federal CU',
+  '66310': "State Employees' CU",
+  '227':   'Pentagon Federal CU',
+  '62604': 'Boeing Employees CU',
+  '24212': 'SchoolsFirst FCU',
+  '61650': 'The Golden 1 CU',
+};
 
 const METRIC_ROWS = [
   { key: 'roa',               label: 'ROA',               pctKey: 'roa',              fmt: (v) => fmtPct(v) },
@@ -171,7 +181,7 @@ export default function ComparePanel({ activeCU, onSendChat }) {
           )}
           {cuNumbers.map((num, ci) => {
             const cu = cus.find((c) => c.institution?.cu_number === num);
-            const label = cu ? cu.institution.name : `#${num}`;
+            const label = cu ? cu.institution.name : (NAME_CACHE[num] || num);
             return (
               <span key={num} className="tray-chip" style={{ borderColor: COLORS[ci % COLORS.length] }}>
                 <span

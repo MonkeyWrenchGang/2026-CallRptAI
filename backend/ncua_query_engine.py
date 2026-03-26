@@ -265,6 +265,26 @@ def get_ncua_institution_context(cu_number: Optional[str] = None) -> str:
         else:
             size_tier = f"${assets_m:,.1f}M"
 
+        # Peer group lookup (graceful degradation if table doesn't exist)
+        peer_group_line = ""
+        try:
+            pg_row = cursor.execute(
+                """
+                SELECT cluster_id, cluster_label, cluster_size
+                FROM peer_groups
+                WHERE cu_number = ?
+                """,
+                (str(cu_number),),
+            ).fetchone()
+            if pg_row:
+                peer_group_line = (
+                    f"\n- Peer Group: {pg_row['cluster_label']} "
+                    f"(cluster {pg_row['cluster_id']} of 8, "
+                    f"{pg_row['cluster_size']} institutions)"
+                )
+        except Exception:
+            pass  # peer_groups table may not exist yet
+
         ctx = f"""Currently selected credit union:
 - Name: {inst['name']}
 - NCUA Charter #: {cu_number}
@@ -272,7 +292,7 @@ def get_ncua_institution_context(cu_number: Optional[str] = None) -> str:
 - Charter Type: {inst['charter_type'] or 'N/A'}
 - Region: {inst['region'] or 'N/A'}
 - Total Assets: {size_tier} (as of {latest['report_date']}, quarter {latest['quarter_label'] or ''})
-- Institution ID in database: {inst_id}
+- Institution ID in database: {inst_id}{peer_group_line}
 
 Latest Key Performance Indicators ({latest['report_date']}):
 - Total Shares (deposits equiv.): ${shares_m:,.1f}M

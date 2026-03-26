@@ -212,11 +212,25 @@ def get_institution(cu_number: str):
             "peer_count":        n,
         }
 
+        # Peer group info (graceful degradation if table doesn't exist)
+        peer_group = None
+        try:
+            pg_row = conn.execute("""
+                SELECT cluster_id, cluster_label, cluster_size, cluster_median_assets
+                FROM peer_groups
+                WHERE cu_number = ?
+            """, (cu_number,)).fetchone()
+            if pg_row:
+                peer_group = dict(pg_row)
+        except Exception:
+            pass  # peer_groups table may not exist yet
+
         return {
             "institution": inst_dict,
             "latest": latest,
             "trend": trend_list,
             "percentiles": percentiles,
+            "peer_group": peer_group,
         }
 
 
@@ -529,3 +543,187 @@ def search_suggest(
             LIMIT ?
         """, (latest_q, f"%{q}%", limit)).fetchall()
         return {"results": rows_as_dicts(rows)}
+
+
+# ── /institutions/{cu_number}/peers ───────────────────────────────────────
+
+@router.get("/institutions/{cu_number}/peers")
+def get_institution_peers(cu_number: str):
+    """
+    Returns the CU's cluster assignment and the 10 closest peers within
+    the same cluster, ranked by |log10(assets) difference| from the subject CU.
+
+    Each peer includes: cu_number, name, state, charter_type, total_assets,
+    roa, net_worth_ratio, delinquency_ratio, loan_to_share_ratio.
+
+    Returns 404 if the CU is not found, or 503 if peer groups haven't been
+    computed yet.
+    """
+    with get_conn() as conn:
+        # Verify CU exists
+        inst = conn.execute(
+            "SELECT * FROM institutions WHERE cu_number = ?", (cu_number,)
+        ).fetchone()
+        if not inst:
+            raise HTTPException(404, f"CU {cu_number} not found")
+
+        # Check peer_groups table exists
+        tbl_check = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='peer_groups'"
+        ).fetchone()
+        if not tbl_check:
+            raise HTTPException(
+                503,
+                "Peer groups have not been computed yet. "
+                "Run backend/peer_clustering.py first.",
+            )
+
+        # Get this CU's cluster assignment
+        pg_row = conn.execute("""
+            SELECT cluster_id, cluster_label, cluster_size, cluster_median_assets,
+                   quarter_label
+            FROM peer_groups
+            WHERE cu_number = ?
+        """, (cu_number,)).fetchone()
+
+        if not pg_row:
+            raise HTTPException(
+                404,
+                f"CU {cu_number} has no peer group assignment. "
+                "Re-run peer_clustering.py to include this CU.",
+            )
+
+        pg = dict(pg_row)
+        cluster_id = pg["cluster_id"]
+        quarter_label = pg["quarter_label"]
+
+        # Get subject CU's latest assets for distance ranking
+        subject_assets_row = conn.execute("""
+            SELECT f.total_assets
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE i.cu_number = ? AND f.quarter_label = ?
+        """, (cu_number, quarter_label)).fetchone()
+
+        subject_assets = subject_assets_row["total_assets"] if subject_assets_row else None
+        import math as _math
+        subject_log_assets = (
+            _math.log10(subject_assets) if subject_assets and subject_assets > 0 else None
+        )
+
+        # Get all peers in same cluster (excluding the subject CU itself)
+        peers_rows = conn.execute("""
+            SELECT
+                i.cu_number, i.name, i.state, i.charter_type,
+                ROUND(f.total_assets, 0)        AS total_assets,
+                ROUND(f.roa, 6)                 AS roa,
+                ROUND(f.net_worth_ratio, 6)     AS net_worth_ratio,
+                ROUND(f.delinquency_ratio, 6)   AS delinquency_ratio,
+                ROUND(f.loan_to_share_ratio, 4) AS loan_to_share_ratio
+            FROM peer_groups pg
+            JOIN institutions i ON i.cu_number = pg.cu_number
+            JOIN financial_data f
+                ON f.institution_id = i.id AND f.quarter_label = ?
+            WHERE pg.cluster_id = ?
+              AND pg.cu_number != ?
+              AND f.total_assets IS NOT NULL
+        """, (quarter_label, cluster_id, cu_number)).fetchall()
+
+        peers_list = rows_as_dicts(peers_rows)
+
+        # Rank by |log_assets difference| from subject CU
+        if subject_log_assets is not None:
+            for p in peers_list:
+                ta = p.get("total_assets") or 0
+                if ta > 0:
+                    p["_log_dist"] = abs(_math.log10(ta) - subject_log_assets)
+                else:
+                    p["_log_dist"] = float("inf")
+            peers_list.sort(key=lambda p: p["_log_dist"])
+            for p in peers_list:
+                p.pop("_log_dist", None)
+
+        top_peers = peers_list[:10]
+
+        return {
+            "cu_number": cu_number,
+            "cluster_id": pg["cluster_id"],
+            "cluster_label": pg["cluster_label"],
+            "cluster_size": pg["cluster_size"],
+            "cluster_median_assets": pg["cluster_median_assets"],
+            "quarter_label": quarter_label,
+            "peers": top_peers,
+        }
+
+
+# ── /peer-groups ──────────────────────────────────────────────────────────
+
+@router.get("/peer-groups")
+def get_peer_groups():
+    """
+    Returns summary of all 8 K-means clusters:
+    cluster_id, cluster_label, count, median_assets, median_roa, median_nwr,
+    median_delinquency, asset_range (min/max assets).
+
+    Returns 503 if peer groups haven't been computed yet.
+    """
+    with get_conn() as conn:
+        # Check peer_groups table exists
+        tbl_check = conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='peer_groups'"
+        ).fetchone()
+        if not tbl_check:
+            raise HTTPException(
+                503,
+                "Peer groups have not been computed yet. "
+                "Run backend/peer_clustering.py first.",
+            )
+
+        # Get quarter used for clustering
+        q_row = conn.execute(
+            "SELECT quarter_label FROM peer_groups LIMIT 1"
+        ).fetchone()
+        if not q_row:
+            raise HTTPException(
+                503,
+                "Peer groups table is empty. Run backend/peer_clustering.py first.",
+            )
+        quarter_label = q_row["quarter_label"]
+
+        # Aggregate per cluster: join peer_groups with financial_data
+        rows = conn.execute("""
+            SELECT
+                pg.cluster_id,
+                pg.cluster_label,
+                pg.cluster_size,
+                pg.cluster_median_assets,
+                MIN(f.total_assets)              AS min_assets,
+                MAX(f.total_assets)              AS max_assets,
+                AVG(f.roa)                       AS avg_roa,
+                AVG(f.net_worth_ratio)           AS avg_nwr,
+                AVG(f.delinquency_ratio)         AS avg_delinquency,
+                AVG(f.loan_to_share_ratio)       AS avg_loan_to_share
+            FROM peer_groups pg
+            JOIN institutions i ON i.cu_number = pg.cu_number
+            JOIN financial_data f
+                ON f.institution_id = i.id AND f.quarter_label = ?
+            GROUP BY pg.cluster_id, pg.cluster_label, pg.cluster_size,
+                     pg.cluster_median_assets
+            ORDER BY pg.cluster_id
+        """, (quarter_label,)).fetchall()
+
+        clusters = []
+        for r in rows:
+            d = dict(r)
+            # Round for cleaner output
+            d["avg_roa"]          = round(d["avg_roa"], 6)          if d["avg_roa"] is not None else None
+            d["avg_nwr"]          = round(d["avg_nwr"], 6)          if d["avg_nwr"] is not None else None
+            d["avg_delinquency"]  = round(d["avg_delinquency"], 6)  if d["avg_delinquency"] is not None else None
+            d["avg_loan_to_share"]= round(d["avg_loan_to_share"], 4)if d["avg_loan_to_share"] is not None else None
+            clusters.append(d)
+
+        return {
+            "quarter_label": quarter_label,
+            "cluster_count": len(clusters),
+            "clusters": clusters,
+        }

@@ -3,11 +3,11 @@ import { fmtAssets } from '../utils/format';
 
 const QUICK_ACCESS = [
   { cu_number: '5536',  name: 'Navy Federal Credit Union',        state: 'VA' },
-  { cu_number: '68435', name: 'State Employees Credit Union',     state: 'NC' },
-  { cu_number: '67808', name: 'Pentagon Federal Credit Union',    state: 'VA' },
-  { cu_number: '24692', name: 'Boeing Employees Credit Union',    state: 'WA' },
-  { cu_number: '12702', name: 'SchoolsFirst Federal Credit Union',state: 'CA' },
-  { cu_number: '66441', name: 'Golden 1 Credit Union',            state: 'CA' },
+  { cu_number: '66310', name: "State Employees' Credit Union",    state: 'NC' },
+  { cu_number: '227',   name: 'Pentagon Federal Credit Union',    state: 'VA' },
+  { cu_number: '62604', name: 'Boeing Employees Credit Union',    state: 'WA' },
+  { cu_number: '24212', name: 'SchoolsFirst Federal Credit Union',state: 'CA' },
+  { cu_number: '61650', name: 'The Golden 1 Credit Union',        state: 'CA' },
 ];
 
 export default function Sidebar({
@@ -131,14 +131,10 @@ export default function Sidebar({
                     }
                   }}
                 >
-                  <div className="inst-name">
-                    <span className="inst-type-icon" aria-hidden="true">🏧</span>
-                    {inst.name}
-                  </div>
+                  <div className="inst-name">{inst.name}</div>
                   <div className="inst-meta">
                     {inst.state}
                     {inst.total_assets != null && <> · {fmtAssets(inst.total_assets)}</>}
-                    {inst.cu_number && <> · #{inst.cu_number}</>}
                   </div>
                 </div>
               );
