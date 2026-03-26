@@ -18,7 +18,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY backend/ ./backend/
 
 # Verify database integrity at build time
-RUN python -c "import sqlite3; conn=sqlite3.connect('backend/data/ncua_callreports.db'); tables=conn.execute('SELECT name FROM sqlite_master WHERE type=\"table\"').fetchall(); print('Tables:', [t[0] for t in tables]); assert any('institutions' in t for t in tables), 'institutions table missing!'; print('DB OK')"
+RUN ls -la backend/data/ && python -c "import sqlite3; conn=sqlite3.connect('/app/backend/data/ncua_callreports.db'); tables=conn.execute('SELECT name FROM sqlite_master WHERE type=\"table\"').fetchall(); print('Tables:', [t[0] for t in tables]); assert any('institutions' in t for t in tables), 'institutions table missing!'; print('DB OK')"
 
 # Copy React build into the location main.py expects
 COPY --from=frontend-build /app/frontend/build ./frontend/build
