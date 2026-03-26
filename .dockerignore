@@ -2,9 +2,9 @@ node_modules
 frontend/node_modules
 frontend/build
 backend/__pycache__
-backend/data
+backend/data/ncua_raw
+backend/data/ncua_cache
 *.pyc
 .git
 .env
-*.db
 *.db-journal

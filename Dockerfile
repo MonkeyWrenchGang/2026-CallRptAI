@@ -17,9 +17,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy backend source
 COPY backend/ ./backend/
 
-# Verify database exists and list contents
-RUN ls -la backend/data/
-
 # Copy React build into the location main.py expects
 COPY --from=frontend-build /app/frontend/build ./frontend/build
 
