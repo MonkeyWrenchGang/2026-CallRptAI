@@ -2,7 +2,7 @@
 FROM node:20-slim AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
-RUN npm ci --silent
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
@@ -27,4 +27,4 @@ WORKDIR /app/backend
 
 EXPOSE 8000
 
-CMD ["python", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD python -m uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
