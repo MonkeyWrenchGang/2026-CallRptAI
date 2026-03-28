@@ -1,6 +1,8 @@
 import React from 'react';
 import ReactMarkdown from 'react-markdown';
 import { fmtAssets } from '../utils/format';
+import ChartRenderer from './ChartRenderer';
+import DataTable from './DataTable';
 
 const QUICK_PROMPTS = [
   '8Q NWR trend',
@@ -129,6 +131,14 @@ export default function ChatPanel({
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               ) : (
                 <p>{msg.content}</p>
+              )}
+              {/* Chart visualization */}
+              {msg.vizConfig && msg.resultData && (
+                <ChartRenderer vizConfig={msg.vizConfig} data={msg.resultData} />
+              )}
+              {/* Data table */}
+              {msg.resultData && msg.resultData.row_count > 0 && (
+                <DataTable columns={msg.resultData.columns} rows={msg.resultData.rows} />
               )}
               {/* NCUA citations */}
               {msg.citations && msg.citations.length > 0 && (

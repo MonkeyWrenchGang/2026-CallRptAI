@@ -288,6 +288,28 @@ export default function App() {
       });
       const data = await response.json();
 
+      // Auto-generate chart config if user asked for a chart but Claude didn't suggest one
+      let vizConfig = data.viz_config || null;
+      const resultData = data.data || null;
+      const wantsChart = /\b(chart|graph|plot|visuali[zs]e)\b/i.test(text);
+
+      if (wantsChart && resultData?.rows?.length > 1 && !vizConfig) {
+        const numericCol = resultData.columns.find(
+          (c) => typeof resultData.rows[0][c] === 'number'
+        );
+        const labelCol = resultData.columns.find(
+          (c) => typeof resultData.rows[0][c] === 'string'
+        );
+        if (numericCol && labelCol) {
+          vizConfig = {
+            chart_type: resultData.rows.length > 8 ? 'line' : 'bar',
+            x_field: labelCol,
+            y_field: numericCol,
+            title: 'Query Results',
+          };
+        }
+      }
+
       setMessages((prev) => [
         ...prev,
         {
@@ -296,6 +318,8 @@ export default function App() {
           citations: data.citations || [],
           sql: data.sql_query,
           source: data.source,
+          resultData: resultData,
+          vizConfig: vizConfig,
           timestamp: new Date(),
         },
       ]);

@@ -102,6 +102,7 @@ class ChatResponse(BaseModel):
     answer: str
     sql_query: Optional[str] = None
     data: Optional[dict] = None
+    viz_config: Optional[dict] = None
     session_id: str
     source: str  # "claude" or "mock"
 
@@ -1006,6 +1007,7 @@ def ncua_claude_chat(
             data = execute_ncua_sql(sql_query)
 
     # ── Step 3: Interpret results ───────────────────────────────────────
+    viz_config = None
     if data.get("rows"):
         result_summary = json.dumps(data["rows"][:20], indent=2, default=str)
 
@@ -1016,10 +1018,21 @@ def ncua_claude_chat(
                 f"{cu_context}\n\n"
                 f"I ran this NCUA 5300 query:\n```sql\n{sql_query}\n```\n\n"
                 f"Results ({data['row_count']} rows, dollar values are in actual dollars):\n"
+                f"Columns: {data.get('columns', [])}\n"
                 f"{result_summary}\n\n"
                 "Please provide an executive-level analysis of these results. "
                 "Be concise and insightful. Use credit union terminology. "
-                "Convert dollar amounts to millions or billions for readability."
+                "Convert dollar amounts to millions or billions for readability.\n\n"
+                "Additionally, if the data would benefit from a chart, include a JSON block "
+                "at the END of your response in this exact format:\n"
+                "```viz\n"
+                '{"chart_type": "bar"|"line"|"pie", "x_field": "<column_name>", '
+                '"y_field": "<column_name>", "title": "<short title>"}\n'
+                "```\n"
+                "Use 'line' for time-series trends, 'bar' for comparisons across categories, "
+                "'pie' for composition (8 or fewer slices). "
+                "x_field and y_field must be exact column names from the result set. "
+                "If the data is a single row or not suitable for charting, omit the viz block."
             ),
         }]
 
@@ -1030,6 +1043,15 @@ def ncua_claude_chat(
             messages=interpret_messages,
         )
         answer = interpret_resp.content[0].text
+
+        # Extract optional visualization config
+        viz_match = re.search(r'```viz\s*(\{.*?\})\s*```', answer, re.DOTALL)
+        if viz_match:
+            try:
+                viz_config = json.loads(viz_match.group(1))
+            except json.JSONDecodeError:
+                viz_config = None
+            answer = answer[:viz_match.start()].rstrip()
     else:
         answer = (
             "I wasn't able to find relevant data for that question in the NCUA database. "
@@ -1037,7 +1059,7 @@ def ncua_claude_chat(
             "delinquency rate, loan-to-share ratio, member growth, ROA, or NIM?"
         )
 
-    return {"answer": answer, "sql": sql_query, "data": data}
+    return {"answer": answer, "sql": sql_query, "data": data, "viz_config": viz_config}
 
 
 # ── NCUA API Routes ──────────────────────────────────────────────────────
@@ -1063,6 +1085,7 @@ async def ncua_chat(request: NCUAChatRequest):
         answer=result["answer"],
         sql_query=result.get("sql"),
         data=result.get("data"),
+        viz_config=result.get("viz_config"),
         session_id=session_id,
         source="claude" if HAS_ANTHROPIC else "mock",
     )
