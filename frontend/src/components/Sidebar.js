@@ -152,16 +152,13 @@ export default function Sidebar({
             {showQuick && !selectedInstitution && (
               <div className="list-section-label">Quick access</div>
             )}
-            {showQuick && selectedInstitution && (
-              <div className="list-section-label">All credit unions</div>
-            )}
             {searching && (
               <div className="list-section-label">Searching…</div>
             )}
             {!searching && !showQuick && results.length === 0 && query.trim() && (
               <div className="list-section-label">No results</div>
             )}
-            {listItems.map((inst) => {
+            {(showQuick && selectedInstitution ? [] : listItems).map((inst) => {
               const key = inst.cu_number || inst.id;
               const isSelected = selectedInstitution?.cu_number === inst.cu_number ||
                                  selectedInstitution?.id === inst.id;
