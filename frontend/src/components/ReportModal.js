@@ -30,30 +30,16 @@ export default function ReportModal({ cuNumber, onClose }) {
     setGenerating(true);
     setNarrative(null);
 
-    const trend = data?.trend?.slice(0, quarters) || [];
-    const inst = data?.institution;
-    const latest = data?.latest;
-
-    fetch('/api/ncua/chat', {
+    fetch('/api/ncua/report', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        message: `Generate a comprehensive executive call report for ${inst?.name} (CU# ${cuNumber}) covering the last ${quarters} quarters. Include sections for:
-1. Executive Summary (2-3 paragraphs)
-2. Balance Sheet Analysis (assets, loans, shares trends)
-3. Profitability Analysis (ROA, NIM, efficiency ratio)
-4. Capital Adequacy (net worth ratio, CAMEL classification)
-5. Asset Quality (delinquency trends, risk assessment)
-6. Membership & Growth
-7. Strategic Outlook & Recommendations
-
-Be thorough, data-driven, and use credit union terminology throughout.`,
         cu_number: cuNumber,
-        history: [],
+        quarters: quarters,
       }),
     })
       .then((r) => r.json())
-      .then((d) => { setNarrative(d.answer); setGenerating(false); })
+      .then((d) => { setNarrative(d.narrative); setGenerating(false); })
       .catch(() => { setNarrative('Error generating report narrative.'); setGenerating(false); });
   };
 

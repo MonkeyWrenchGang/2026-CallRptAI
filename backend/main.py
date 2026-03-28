@@ -1091,6 +1091,90 @@ async def ncua_chat(request: NCUAChatRequest):
     )
 
 
+# ── Report Generation ─────────────────────────────────────────────────
+
+class ReportRequest(BaseModel):
+    cu_number: str
+    quarters: int = 8
+
+@app.post("/api/ncua/report")
+async def generate_report(request: ReportRequest):
+    """
+    Generate an executive call report narrative using institution data directly.
+    Bypasses the SQL pipeline — pulls data from the institution endpoint and
+    sends it to Claude for analysis.
+    """
+    if not claude_client:
+        return {"narrative": "Report generation requires an active Claude API key."}
+
+    # Fetch institution data
+    from ncua_api import get_institution
+    try:
+        inst_data = get_institution(request.cu_number)
+    except Exception as e:
+        return {"narrative": f"Could not load data for CU# {request.cu_number}: {e}"}
+
+    inst = inst_data.get("institution", {})
+    latest = inst_data.get("latest", {})
+    trend = inst_data.get("trend", [])[:request.quarters]
+    pcts = inst_data.get("percentiles", {})
+
+    # Build a rich data summary for Claude
+    trend_summary = json.dumps(
+        [{k: v for k, v in q.items() if k != 'id'} for q in trend],
+        indent=2, default=str
+    )
+
+    prompt = f"""Generate a comprehensive executive call report for {inst.get('name', 'this credit union')} (CU# {request.cu_number}).
+
+Institution: {inst.get('name')} · {inst.get('state')} · {inst.get('charter_type')} · Est. {inst.get('year_opened', 'N/A')}
+CAMEL Classification: {latest.get('camel_class', 'N/A')}
+
+Latest Quarter ({latest.get('quarter_label', 'N/A')}):
+- Total Assets: ${latest.get('total_assets', 0):,.0f}
+- Total Loans: ${latest.get('total_loans', 0):,.0f}
+- Total Shares: ${latest.get('total_shares', 0):,.0f}
+- Members: {latest.get('member_count', 0):,}
+- Net Income: ${latest.get('net_income', 0):,.0f}
+- ROA: {(latest.get('roa', 0) or 0) * 100:.2f}%
+- Net Worth Ratio: {(latest.get('net_worth_ratio', 0) or 0) * 100:.2f}%
+- Delinquency Rate: {(latest.get('delinquency_ratio', 0) or 0) * 100:.2f}%
+- Loan-to-Share: {(latest.get('loan_to_share_ratio', 0) or 0) * 100:.1f}%
+- NIM: {(latest.get('net_interest_margin', 0) or 0) * 100:.2f}%
+- Efficiency Ratio: {(latest.get('efficiency_ratio', 0) or 0) * 100:.1f}%
+
+Peer Percentiles (vs asset-band peers, {pcts.get('peer_count', 'N/A')} CUs):
+- ROA: {pcts.get('roa', 'N/A')}th percentile
+- Net Worth Ratio: {pcts.get('net_worth_ratio', 'N/A')}th percentile
+- Delinquency: {pcts.get('delinquency_ratio', 'N/A')}th percentile
+
+Historical Trend ({request.quarters} quarters):
+{trend_summary}
+
+Write a thorough executive report with these sections:
+1. Executive Summary (2-3 paragraphs)
+2. Balance Sheet Analysis (assets, loans, shares trends)
+3. Profitability Analysis (ROA, NIM, efficiency ratio)
+4. Capital Adequacy (net worth ratio, CAMEL classification)
+5. Asset Quality (delinquency trends, risk assessment)
+6. Membership & Growth
+7. Strategic Outlook & Recommendations
+
+Be data-driven, cite specific numbers, and use credit union terminology throughout.
+Convert dollar amounts to millions or billions for readability."""
+
+    try:
+        resp = claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=4096,
+            system=NCUA_SYSTEM_PROMPT_INTERPRET,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return {"narrative": resp.content[0].text}
+    except Exception as e:
+        return {"narrative": f"Error generating report: {e}"}
+
+
 @app.post("/api/ncua/institutions/search")
 async def ncua_search_institutions(request: InstitutionSearchRequest):
     """Search NCUA credit unions by name and/or state."""
