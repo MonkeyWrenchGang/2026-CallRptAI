@@ -833,22 +833,108 @@ def _ncua_mock_response(message: str, cu_number: Optional[str] = None) -> dict:
 
 
 # ── NCUA Claude pipeline ─────────────────────────────────────────────────
+NCUA_ROUTER_PROMPT = """You are a routing classifier for a credit union data analytics platform.
+Given a user's question, classify it into exactly ONE category. Return ONLY the category label, nothing else.
+
+Categories:
+- DATA_QUERY — Questions that require looking up specific numbers, trends, comparisons, or rankings from the NCUA 5300 call report database. Examples: "What's Navy Federal's ROA?", "Show me the top 10 CUs by assets", "How has our delinquency trended?", "Compare us to Pentagon FCU"
+- KNOWLEDGE — Questions about credit union concepts, definitions, regulatory thresholds, or general industry knowledge that can be answered without querying the database. Examples: "What does net worth ratio mean?", "What's a good ROA for a credit union?", "Explain the CAMEL rating system", "What are NCUA regulatory thresholds?"
+- OFF_TOPIC — Questions unrelated to credit unions, banking, or financial analysis. Examples: "What's the weather?", "Write me a poem", "Tell me a joke"
+
+Return ONLY one of: DATA_QUERY, KNOWLEDGE, OFF_TOPIC"""
+
+NCUA_KNOWLEDGE_PROMPT = """You are an expert NCUA 5300 Call Report analyst answering a credit union executive's question about industry concepts, definitions, or regulatory frameworks.
+
+Style guidelines:
+- Use credit union terminology: "members" not "customers", "shares" not "deposits", "net worth ratio (NWR)" not "Tier 1 capital ratio".
+- Be concise but thorough — executives want actionable understanding.
+- Reference NCUA regulatory thresholds where relevant:
+  * NWR: ≥10% = Well Capitalized, 7–10% = Adequately Capitalized, <7% = Undercapitalized
+  * ROA: credit union peer average is typically 0.70–1.00%
+  * NIM: typically 2.50–3.50% for credit unions
+  * Efficiency ratio: <70% is good, 70–80% is adequate, >80% needs attention
+  * Delinquency rate: <1.0% is healthy, 1–2% is watch, >2% is concern
+  * Loan-to-share ratio: 70–85% is typical
+- Reference NCUA 5300 report schedules when relevant.
+- If the question could benefit from actual data analysis, suggest what they could ask next (e.g., "To see how your CU compares, try asking: 'How does our ROA compare to peers?'")."""
+
+
+def _classify_question(message: str) -> str:
+    """Classify a user question as DATA_QUERY, KNOWLEDGE, or OFF_TOPIC."""
+    resp = claude_client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=20,
+        system=NCUA_ROUTER_PROMPT,
+        messages=[{"role": "user", "content": message}],
+    )
+    label = resp.content[0].text.strip().upper()
+    if label in ("DATA_QUERY", "KNOWLEDGE", "OFF_TOPIC"):
+        return label
+    # Default to DATA_QUERY if classification is unclear
+    return "DATA_QUERY"
+
+
+def _answer_knowledge_question(
+    message: str,
+    cu_number: Optional[str] = None,
+    history: Optional[list] = None,
+) -> dict:
+    """Answer a conceptual/knowledge question without SQL."""
+    cu_context = get_ncua_institution_context(cu_number)
+
+    messages = []
+    if history:
+        for h in (history or [])[-6:]:
+            messages.append({"role": h["role"], "content": h["content"]})
+    messages.append({
+        "role": "user",
+        "content": f"Credit union context:\n{cu_context}\n\nQuestion: {message}",
+    })
+
+    resp = claude_client.messages.create(
+        model="claude-sonnet-4-6",
+        max_tokens=2048,
+        system=NCUA_KNOWLEDGE_PROMPT,
+        messages=messages,
+    )
+    return {"answer": resp.content[0].text, "sql": None, "data": None}
+
+
 def ncua_claude_chat(
     message: str,
     cu_number: Optional[str] = None,
     history: Optional[list] = None,
 ) -> dict:
     """
-    Full Claude-powered NCUA analysis pipeline.
+    Full Claude-powered NCUA analysis pipeline with intent routing.
 
-    1. Build context (schema + CU KPIs).
-    2. Ask Claude to generate SQL.
-    3. Execute SQL against ncua_callreports.db.
-    4. Ask Claude to interpret results for a CU executive.
+    Step 0: Classify the question (DATA_QUERY / KNOWLEDGE / OFF_TOPIC).
+    Step 1: Build context (schema + CU KPIs).
+    Step 2: Ask Claude to generate SQL.
+    Step 3: Execute SQL against ncua_callreports.db.
+    Step 4: Ask Claude to interpret results for a CU executive.
     """
     if not claude_client:
         return _ncua_mock_response(message, cu_number)
 
+    # ── Step 0: Route the question ──────────────────────────────────────
+    intent = _classify_question(message)
+
+    if intent == "OFF_TOPIC":
+        return {
+            "answer": (
+                "I'm focused on credit union financial analysis using NCUA 5300 call report data. "
+                "I can help with topics like asset trends, ROA, net worth ratios, delinquency rates, "
+                "peer comparisons, and regulatory metrics. How can I help with your CU analysis?"
+            ),
+            "sql": None,
+            "data": None,
+        }
+
+    if intent == "KNOWLEDGE":
+        return _answer_knowledge_question(message, cu_number, history)
+
+    # ── DATA_QUERY: proceed with SQL pipeline ───────────────────────────
     cu_context = get_ncua_institution_context(cu_number)
 
     # ── Step 1: Generate SQL ────────────────────────────────────────────
