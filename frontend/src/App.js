@@ -400,53 +400,54 @@ export default function App() {
             />
           )}
 
-          {activeView === 'pulse' ? (
-            <PulseView onSelectInstitution={selectInstitution} />
-          ) : activeView === 'ask' ? (
-            <div className="hybrid-main">
-              <ChatPanel
-                sidebarOpen={sidebarOpen}
-                onOpenSidebar={() => setSidebarOpen(true)}
-                selectedInstitution={selectedInstitution}
-                messages={messages}
-                loading={loading}
-                input={input}
-                onInputChange={setInput}
-                onSend={sendMessage}
-                onKeyDown={handleKeyDown}
-                suggestions={suggestions}
-                showSqlFor={showSqlFor}
-                onToggleSql={setShowSqlFor}
-                inputRef={inputRef}
-                messagesEndRef={messagesEndRef}
-                showOverviewToggle={showRail && isNarrow}
-                overviewOpen={overviewDrawerOpen}
-                onToggleOverview={() => setOverviewDrawerOpen((o) => !o)}
-                onQuickCompare={() => setActiveView('compare')}
-              />
-
-              {showRail && (
-                <div
-                  className={`overview-rail-wrap ${railVisible ? 'is-open' : ''} ${isNarrow ? 'is-drawer' : ''}`}
-                >
-                  <OverviewRail
-                    activeCU={activeCU}
-                    onAddCompare={() => setActiveView('compare')}
-                    onOpenCompare={() => setActiveView('compare')}
-                  />
-                </div>
+          <div className="hybrid-main">
+            <div className="view-content">
+              {activeView === 'pulse' ? (
+                <PulseView onSelectInstitution={selectInstitution} />
+              ) : activeView === 'ask' ? (
+                <ChatPanel
+                  sidebarOpen={sidebarOpen}
+                  onOpenSidebar={() => setSidebarOpen(true)}
+                  selectedInstitution={selectedInstitution}
+                  messages={messages}
+                  loading={loading}
+                  input={input}
+                  onInputChange={setInput}
+                  onSend={sendMessage}
+                  onKeyDown={handleKeyDown}
+                  suggestions={suggestions}
+                  showSqlFor={showSqlFor}
+                  onToggleSql={setShowSqlFor}
+                  inputRef={inputRef}
+                  messagesEndRef={messagesEndRef}
+                  showOverviewToggle={showRail && isNarrow}
+                  overviewOpen={overviewDrawerOpen}
+                  onToggleOverview={() => setOverviewDrawerOpen((o) => !o)}
+                  onQuickCompare={() => setActiveView('compare')}
+                />
+              ) : (
+                <ComparePanel
+                  activeCU={activeCU}
+                  onSendChat={(text) => {
+                    setActiveView('ask');
+                    sendMessage(text);
+                  }}
+                />
               )}
             </div>
-          ) : (
-            /* compare view */
-            <ComparePanel
-              activeCU={activeCU}
-              onSendChat={(text) => {
-                setActiveView('ask');
-                sendMessage(text);
-              }}
-            />
-          )}
+
+            {showRail && (
+              <div
+                className={`overview-rail-wrap ${railVisible ? 'is-open' : ''} ${isNarrow ? 'is-drawer' : ''}`}
+              >
+                <OverviewRail
+                  activeCU={activeCU}
+                  onAddCompare={() => setActiveView('compare')}
+                  onOpenCompare={() => setActiveView('compare')}
+                />
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

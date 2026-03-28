@@ -176,6 +176,12 @@ body {
   position: relative;
 }
 
+.view-content {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+}
+
 /* ── Sidebar ───────────────────────────────────────────────────────── */
 .sidebar {
   width: var(--sidebar-width);
