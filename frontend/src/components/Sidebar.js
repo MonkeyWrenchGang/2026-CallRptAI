@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { fmtAssets, fmtMembers, fmtRatio } from '../utils/format';
+import { fmtAssets, fmtMembers, fmtRatio, fmtPct } from '../utils/format';
 
 const QUICK_CU_NUMBERS = ['5536', '66310', '227', '62604', '24212', '61650'];
 
@@ -15,6 +15,7 @@ export default function Sidebar({
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [quickData, setQuickData] = useState([]);
+  const [sidebarPeers, setSidebarPeers] = useState([]);
   const timerRef = useRef(null);
 
   // Fetch quick access data on mount
@@ -24,6 +25,18 @@ export default function Sidebar({
       .then((d) => setQuickData(d.results || []))
       .catch(() => setQuickData([]));
   }, []);
+
+  // Fetch peers when a CU is selected
+  useEffect(() => {
+    if (!selectedInstitution?.cu_number) {
+      setSidebarPeers([]);
+      return;
+    }
+    fetch(`/api/ncua/institutions/${selectedInstitution.cu_number}/peers`)
+      .then((r) => r.json())
+      .then((d) => setSidebarPeers((d.peers || []).slice(0, 5)))
+      .catch(() => setSidebarPeers([]));
+  }, [selectedInstitution?.cu_number]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -105,9 +118,42 @@ export default function Sidebar({
             </div>
           )}
 
+          {/* Peer CUs when selected */}
+          {selectedInstitution && sidebarPeers.length > 0 && showQuick && (
+            <div className="institution-list sidebar-peers">
+              <div className="list-section-label">Similar Credit Unions</div>
+              {sidebarPeers.map((p) => (
+                <div
+                  key={p.cu_number}
+                  role="button"
+                  tabIndex={0}
+                  className="inst-item"
+                  onClick={() => handleSelect(p)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleSelect(p);
+                    }
+                  }}
+                >
+                  <div className="inst-name">{p.name}</div>
+                  <div className="inst-metrics">
+                    <span className="inst-metric">{fmtAssets(p.total_assets)}</span>
+                    {p.roa != null && (
+                      <span className="inst-metric">ROA {fmtPct(p.roa)}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
           <div className="institution-list">
-            {showQuick && (
+            {showQuick && !selectedInstitution && (
               <div className="list-section-label">Quick access</div>
+            )}
+            {showQuick && selectedInstitution && (
+              <div className="list-section-label">All credit unions</div>
             )}
             {searching && (
               <div className="list-section-label">Searching…</div>

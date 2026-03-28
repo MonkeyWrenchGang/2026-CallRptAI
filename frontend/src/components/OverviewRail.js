@@ -74,18 +74,22 @@ export default function OverviewRail({
   const [activeTab, setActiveTab] = useState('overview');
   const [aiSummary, setAiSummary] = useState(null);
   const [summaryLoading, setSummaryLoading] = useState(false);
+  const [peers, setPeers] = useState(null);
+  const [peersLoading, setPeersLoading] = useState(false);
 
   useEffect(() => {
     if (!activeCU) {
       setData(null);
       setError(false);
       setAiSummary(null);
+      setPeers(null);
       return;
     }
     let cancelled = false;
     setLoading(true);
     setError(false);
     setAiSummary(null);
+    setPeers(null);
     setActiveTab('overview');
     fetch(`/api/ncua/institutions/${activeCU}`)
       .then((r) => {
@@ -116,6 +120,15 @@ export default function OverviewRail({
       .then((r) => r.json())
       .then((d) => { setAiSummary(d.answer); setSummaryLoading(false); })
       .catch(() => { setAiSummary('Unable to generate summary.'); setSummaryLoading(false); });
+  };
+
+  const loadPeers = () => {
+    if (peers || peersLoading || !activeCU) return;
+    setPeersLoading(true);
+    fetch(`/api/ncua/institutions/${activeCU}/peers`)
+      .then((r) => r.json())
+      .then((d) => { setPeers(d.peers || []); setPeersLoading(false); })
+      .catch(() => { setPeers([]); setPeersLoading(false); });
   };
 
   if (!activeCU) return null;
@@ -178,6 +191,7 @@ export default function OverviewRail({
                   onClick={() => {
                     setActiveTab(t.key);
                     if (t.key === 'overview' && !aiSummary) loadAiSummary();
+                    if (t.key === 'peers') loadPeers();
                   }}
                 >
                   {t.label}
@@ -338,6 +352,27 @@ export default function OverviewRail({
                   </>
                 ) : (
                   <p className="overview-sub">Peer data not available.</p>
+                )}
+
+                {/* Top 5 Closest Peers */}
+                {peersLoading && <div className="peer-loading">Loading peers...</div>}
+                {peers && peers.length > 0 && (
+                  <div className="peer-list-section">
+                    <div className="peer-list-label">Closest Peers by Asset Size</div>
+                    <div className="peer-list">
+                      {peers.slice(0, 5).map((p) => (
+                        <div key={p.cu_number} className="peer-list-item">
+                          <div className="peer-list-name">{p.name}</div>
+                          <div className="peer-list-meta">
+                            <span>{p.state}</span>
+                            <span className="mono">{fmtAssets(p.total_assets)}</span>
+                            <span className="mono">ROA {fmtPct(p.roa)}</span>
+                            <span className="mono">NWR {fmtPct(p.net_worth_ratio)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 )}
 
                 {onOpenCompare && (
