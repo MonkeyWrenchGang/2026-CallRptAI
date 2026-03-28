@@ -26,11 +26,100 @@ const MARKET_SUGGESTIONS = [
   'Analyze trends in loan-to-share ratios',
 ];
 
+// ── QoQ arrow helper ──────────────────────────────────────────────────────
+function QoQArrow({ current, previous, invert = false }) {
+  if (current == null || previous == null) return null;
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.000001) return <span className="qoq-flat">—</span>;
+  const isPositive = invert ? delta < 0 : delta > 0;
+  return (
+    <span className={`qoq-arrow ${isPositive ? 'qoq-up' : 'qoq-down'}`}>
+      {isPositive ? '▲' : '▼'} {fmtPctChange(delta)}
+    </span>
+  );
+}
+
+// ── Industry distribution bar ────────────────────────────────────────────
+function DistributionBar({ dist, label, thresholds }) {
+  if (!dist) return null;
+  const { p10, p25, p50, p75, p90 } = dist;
+  const allVals = [p10, p25, p50, p75, p90].filter((v) => v != null);
+  if (allVals.length === 0) return null;
+  const min = Math.min(...allVals) * 0.8;
+  const max = Math.max(...allVals) * 1.2;
+  const range = max - min || 0.001;
+  const pos = (v) => `${((v - min) / range) * 100}%`;
+
+  return (
+    <div className="dist-bar-section">
+      <div className="dist-bar-label">{label}</div>
+      <div className="dist-bar-track">
+        <div className="dist-bar-iqr" style={{ left: pos(p25), width: `${((p75 - p25) / range) * 100}%` }} />
+        <div className="dist-bar-whisker" style={{ left: pos(p10), width: `${((p90 - p10) / range) * 100}%` }} />
+        <div className="dist-bar-median" style={{ left: pos(p50) }} />
+        {thresholds && thresholds.map((t) => (
+          t.value >= min && t.value <= max ? (
+            <div key={t.label} className="dist-bar-threshold" style={{ left: pos(t.value) }} title={t.label} />
+          ) : null
+        ))}
+      </div>
+      <div className="dist-bar-values">
+        <span>P10: {fmtPct(p10)}</span>
+        <span>P50: {fmtPct(p50)}</span>
+        <span>P90: {fmtPct(p90)}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Mini sparkline for pulse ─────────────────────────────────────────────
+function PulseSparkline({ data, field, width = 120, height = 32, color = '#1D9E75' }) {
+  if (!data || data.length < 2) return null;
+  const vals = data.map((d) => Number(d[field] ?? 0));
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 0.0001;
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} style={{ display: 'block' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+// ── Health gauge ─────────────────────────────────────────────────────────
+function HealthGauge({ score }) {
+  const angle = -90 + (score / 100) * 180;
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#ef9f27' : '#dc2626';
+  const label = score >= 75 ? 'Healthy' : score >= 50 ? 'Moderate' : 'Stressed';
+  return (
+    <div className="health-gauge">
+      <svg width="160" height="90" viewBox="0 0 160 90">
+        <path d="M 10 80 A 70 70 0 0 1 150 80" fill="none" stroke="#e5e5e5" strokeWidth="12" strokeLinecap="round" />
+        <path d="M 10 80 A 70 70 0 0 1 150 80" fill="none" stroke={color} strokeWidth="12" strokeLinecap="round"
+          strokeDasharray={`${(score / 100) * 220} 220`} />
+        <line x1="80" y1="80" x2={80 + 50 * Math.cos((angle * Math.PI) / 180)} y2={80 + 50 * Math.sin((angle * Math.PI) / 180)}
+          stroke={color} strokeWidth="2.5" strokeLinecap="round" />
+        <circle cx="80" cy="80" r="4" fill={color} />
+      </svg>
+      <div className="gauge-score mono">{Math.round(score)}</div>
+      <div className="gauge-label">{label}</div>
+    </div>
+  );
+}
+
 // ── Pulse view ────────────────────────────────────────────────────────────
 function PulseView({ onSelectInstitution }) {
   const [pulse, setPulse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const [aiInsight, setAiInsight] = useState(null);
+  const [insightLoading, setInsightLoading] = useState(false);
+  const pulseRef = useRef(null);
 
   useEffect(() => {
     setLoading(true);
@@ -39,6 +128,53 @@ function PulseView({ onSelectInstitution }) {
       .then((d) => { setPulse(d); setLoading(false); })
       .catch(() => { setError(true); setLoading(false); });
   }, []);
+
+  const loadInsight = () => {
+    if (aiInsight || insightLoading) return;
+    setInsightLoading(true);
+    const s = pulse?.summary || {};
+    const ps = pulse?.prev_summary || {};
+    fetch('/api/ncua/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `Analyze what changed this quarter (${s.quarter}) vs last quarter for the credit union industry. Median ROA went from ${((ps.median_roa||0)*100).toFixed(2)}% to ${((s.median_roa||0)*100).toFixed(2)}%. Median NWR from ${((ps.median_nwr||0)*100).toFixed(2)}% to ${((s.median_nwr||0)*100).toFixed(2)}%. Median delinquency from ${((ps.median_delinquency||0)*100).toFixed(2)}% to ${((s.median_delinquency||0)*100).toFixed(2)}%. Total assets ${s.total_assets?.toLocaleString()}. ${s.below_7pct_nwr} CUs below 7% NWR, ${s.below_10pct_nwr} below 10%. ${(pulse?.risk_radar||[]).length} CUs flagged on risk radar. Give a 3-4 sentence executive summary of the most notable shifts and what they mean.`,
+        history: [],
+      }),
+    })
+      .then((r) => r.json())
+      .then((d) => { setAiInsight(d.answer); setInsightLoading(false); })
+      .catch(() => { setAiInsight('Unable to generate insight.'); setInsightLoading(false); });
+  };
+
+  const handlePrintPulse = () => {
+    const content = pulseRef.current;
+    if (!content) return;
+    const win = window.open('', '_blank');
+    win.document.write(`<html><head><title>Market Pulse - ${pulse?.summary?.quarter || ''}</title>
+      <style>
+        body { font-family: 'IBM Plex Sans', -apple-system, sans-serif; padding: 30px; color: #1a1a18; }
+        h2 { font-size: 20px; margin-bottom: 4px; } h3 { font-size: 14px; margin-top: 20px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+        .pulse-kpi-grid { display: flex; flex-wrap: wrap; gap: 12px; margin: 16px 0; }
+        .pulse-kpi { background: #f7f7f5; padding: 10px 14px; border-radius: 8px; min-width: 120px; }
+        .pulse-kpi-label { font-size: 10px; color: #6b6a64; text-transform: uppercase; }
+        .pulse-kpi-value { font-size: 18px; font-weight: 600; font-family: 'IBM Plex Mono', monospace; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; margin: 8px 0; }
+        th { text-align: left; background: #f7f7f5; padding: 5px 8px; border-bottom: 1px solid #ddd; font-size: 10px; }
+        td { padding: 4px 8px; border-bottom: 1px solid #eee; }
+        .mono { font-family: 'IBM Plex Mono', monospace; }
+        .text-pos { color: #059669; } .text-neg { color: #dc2626; }
+        .pulse-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .qoq-arrow { font-size: 10px; } .qoq-up { color: #059669; } .qoq-down { color: #dc2626; }
+        .ai-insight { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 14px; margin: 16px 0; font-size: 13px; }
+        .footer { margin-top: 30px; border-top: 1px solid #ddd; padding-top: 10px; font-size: 10px; color: #9c9a92; }
+        @media print { body { padding: 15px; } }
+      </style></head><body>${content.innerHTML}
+      <div class="footer">CallRpt AI Market Pulse · Generated ${new Date().toLocaleDateString()} · NCUA 5300 Data · Not financial advice</div>
+      </body></html>`);
+    win.document.close();
+    setTimeout(() => win.print(), 500);
+  };
 
   if (loading) {
     return (
@@ -59,155 +195,203 @@ function PulseView({ onSelectInstitution }) {
   }
 
   const s = pulse?.summary || {};
+  const ps = pulse?.prev_summary || {};
   const movers = pulse?.top_movers || [];
   const radar = pulse?.risk_radar || [];
   const nwrDist = pulse?.nwr_dist || [];
+  const dists = pulse?.distributions || {};
+  const trend = pulse?.market_trend || [];
+
+  // Compute health score (0-100) from industry medians
+  let healthScore = 50;
+  if (s.median_roa != null) healthScore += (s.median_roa - 0.005) * 3000; // 0.5% baseline
+  if (s.median_nwr != null) healthScore += (s.median_nwr - 0.08) * 500;   // 8% baseline
+  if (s.median_delinquency != null) healthScore -= (s.median_delinquency - 0.01) * 2000; // 1% baseline
+  healthScore = Math.max(0, Math.min(100, healthScore));
 
   return (
     <section className="compare-area pulse-view">
       <div className="compare-header">
         <h2>Market Pulse</h2>
-        {s.quarter && <span className="compare-quarter-label">{s.quarter}</span>}
+        <div className="pulse-header-right">
+          {s.quarter && <span className="compare-quarter-label">{s.quarter}</span>}
+          <button type="button" className="pulse-print-btn" onClick={handlePrintPulse}>
+            Print / PDF
+          </button>
+        </div>
       </div>
 
-      {/* Summary KPIs */}
-      <div className="pulse-kpi-grid">
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Credit Unions</div>
-          <div className="pulse-kpi-value mono">{s.cu_count?.toLocaleString() || '—'}</div>
-        </div>
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Total Assets</div>
-          <div className="pulse-kpi-value mono">{fmtAssets(s.total_assets)}</div>
-        </div>
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Total Members</div>
-          <div className="pulse-kpi-value mono">{fmtMembers(s.total_members)}</div>
-        </div>
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Median ROA</div>
-          <div className="pulse-kpi-value mono">{fmtPct(s.median_roa)}</div>
-        </div>
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Median NWR</div>
-          <div className="pulse-kpi-value mono">{fmtPct(s.median_nwr)}</div>
-        </div>
-        <div className="pulse-kpi">
-          <div className="pulse-kpi-label">Median Delinquency</div>
-          <div className="pulse-kpi-value mono">{fmtPct(s.median_delinquency)}</div>
-        </div>
-        {s.below_10pct_nwr != null && (
-          <div className="pulse-kpi pulse-kpi-warn">
-            <div className="pulse-kpi-label">NWR &lt; 10%</div>
-            <div className="pulse-kpi-value mono">{s.below_10pct_nwr.toLocaleString()}</div>
+      <div ref={pulseRef}>
+        {/* Health gauge + KPIs row */}
+        <div className="pulse-top-row">
+          <div className="pulse-gauge-wrap">
+            <h3>Industry Health</h3>
+            <HealthGauge score={healthScore} />
           </div>
-        )}
-        {s.below_7pct_nwr != null && (
-          <div className="pulse-kpi pulse-kpi-danger">
-            <div className="pulse-kpi-label">NWR &lt; 7%</div>
-            <div className="pulse-kpi-value mono">{s.below_7pct_nwr.toLocaleString()}</div>
-          </div>
-        )}
-      </div>
 
-      {/* NWR distribution */}
-      {nwrDist.length > 0 && (
-        <div className="pulse-section">
-          <h3>Net Worth Ratio Distribution</h3>
-          <div className="nwr-dist">
-            {nwrDist.map((band) => (
-              <div key={band.band} className="nwr-band">
-                <div className="nwr-band-label">{band.band}</div>
-                <div className="nwr-band-bar-wrap">
-                  <div
-                    className="nwr-band-bar"
-                    style={{ width: `${Math.min(band.pct * 2, 100)}%` }}
-                  />
-                </div>
-                <div className="nwr-band-count mono">{band.count.toLocaleString()}</div>
-                <div className="nwr-band-pct mono">({band.pct.toFixed(1)}%)</div>
+          <div className="pulse-kpi-grid">
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Credit Unions</div>
+              <div className="pulse-kpi-value mono">{s.cu_count?.toLocaleString() || '—'}</div>
+            </div>
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Total Assets</div>
+              <div className="pulse-kpi-value mono">{fmtAssets(s.total_assets)}</div>
+              <QoQArrow current={s.total_assets} previous={ps.total_assets} />
+            </div>
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Total Members</div>
+              <div className="pulse-kpi-value mono">{fmtMembers(s.total_members)}</div>
+            </div>
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Median ROA</div>
+              <div className="pulse-kpi-value mono">{fmtPct(s.median_roa)}</div>
+              <QoQArrow current={s.median_roa} previous={ps.median_roa} />
+            </div>
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Median NWR</div>
+              <div className="pulse-kpi-value mono">{fmtPct(s.median_nwr)}</div>
+              <QoQArrow current={s.median_nwr} previous={ps.median_nwr} />
+            </div>
+            <div className="pulse-kpi">
+              <div className="pulse-kpi-label">Median Delinquency</div>
+              <div className="pulse-kpi-value mono">{fmtPct(s.median_delinquency)}</div>
+              <QoQArrow current={s.median_delinquency} previous={ps.median_delinquency} invert />
+            </div>
+            {s.below_10pct_nwr != null && (
+              <div className="pulse-kpi pulse-kpi-warn">
+                <div className="pulse-kpi-label">NWR &lt; 10%</div>
+                <div className="pulse-kpi-value mono">{s.below_10pct_nwr.toLocaleString()}</div>
               </div>
-            ))}
+            )}
+            {s.below_7pct_nwr != null && (
+              <div className="pulse-kpi pulse-kpi-danger">
+                <div className="pulse-kpi-label">NWR &lt; 7%</div>
+                <div className="pulse-kpi-value mono">{s.below_7pct_nwr.toLocaleString()}</div>
+              </div>
+            )}
           </div>
         </div>
-      )}
 
-      <div className="pulse-two-col">
-        {/* Top movers */}
-        {movers.length > 0 && (
+        {/* AI "What Changed" insight */}
+        <div className="ai-insight-section">
+          <div className="ai-insight-header">
+            <h3>What Changed This Quarter</h3>
+            {!aiInsight && !insightLoading && (
+              <button type="button" className="ai-brief-btn" onClick={loadInsight}>Generate</button>
+            )}
+          </div>
+          {insightLoading && <div className="ai-brief-loading">Analyzing quarterly changes...</div>}
+          {aiInsight && <div className="ai-insight-text">{aiInsight}</div>}
+        </div>
+
+        {/* Industry sparklines */}
+        {trend.length >= 2 && (
           <div className="pulse-section">
-            <h3>Top ROA Movers (QoQ)</h3>
-            <table className="pulse-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>State</th>
-                  <th>ROA</th>
-                  <th>Change</th>
-                </tr>
-              </thead>
-              <tbody>
-                {movers.slice(0, 10).map((m) => (
-                  <tr key={m.cu_number}>
-                    <td>
-                      <button
-                        type="button"
-                        className="pulse-link"
-                        onClick={() => onSelectInstitution({ cu_number: m.cu_number, name: m.name, state: m.state })}
-                      >
-                        {m.name}
-                      </button>
-                    </td>
-                    <td>{m.state}</td>
-                    <td className="mono">{fmtPct(m.roa_curr)}</td>
-                    <td className={`mono ${m.roa_delta >= 0 ? 'text-pos' : 'text-neg'}`}>
-                      {fmtPctChange(m.roa_delta)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h3>Industry Trends (8 Quarters)</h3>
+            <div className="pulse-sparkline-grid">
+              {[
+                { field: 'median_roa', label: 'Median ROA', color: '#1D9E75', value: s.median_roa },
+                { field: 'median_nwr', label: 'Median NWR', color: '#2563eb', value: s.median_nwr },
+                { field: 'median_delinquency', label: 'Median Delinquency', color: '#dc2626', value: s.median_delinquency },
+              ].map(({ field, label, color, value }) => (
+                <div key={field} className="pulse-sparkline-card">
+                  <div className="pulse-sparkline-header">
+                    <span className="pulse-sparkline-label">{label}</span>
+                    <span className="pulse-sparkline-val mono">{fmtPct(value)}</span>
+                  </div>
+                  <PulseSparkline data={trend} field={field} color={color} />
+                  <div className="sparkline-axis">
+                    <span>{trend[0]?.quarter_label}</span>
+                    <span>{trend[trend.length - 1]?.quarter_label}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 
-        {/* Risk radar */}
-        {radar.length > 0 && (
+        {/* Industry distribution bars */}
+        {Object.keys(dists).length > 0 && (
           <div className="pulse-section">
-            <h3>Risk Radar</h3>
-            <table className="pulse-table">
-              <thead>
-                <tr>
-                  <th>Name</th>
-                  <th>State</th>
-                  <th>NWR</th>
-                  <th>Delinquency</th>
-                </tr>
-              </thead>
-              <tbody>
-                {radar.slice(0, 10).map((r) => (
-                  <tr key={r.cu_number}>
-                    <td>
-                      <button
-                        type="button"
-                        className="pulse-link"
-                        onClick={() => onSelectInstitution({ cu_number: r.cu_number, name: r.name, state: r.state })}
-                      >
-                        {r.name}
-                      </button>
-                    </td>
-                    <td>{r.state}</td>
-                    <td className={`mono ${r.net_worth_ratio < 0.08 ? 'text-neg' : ''}`}>
-                      {fmtPct(r.net_worth_ratio)}
-                    </td>
-                    <td className={`mono ${r.delinquency_ratio > 0.02 ? 'text-neg' : ''}`}>
-                      {fmtPct(r.delinquency_ratio)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h3>Industry Distribution (Percentiles)</h3>
+            <DistributionBar dist={dists.roa} label="ROA" thresholds={[{ label: 'Peer avg', value: 0.008 }]} />
+            <DistributionBar dist={dists.nwr} label="Net Worth Ratio" thresholds={[{ label: 'Well Cap.', value: 0.10 }, { label: 'Under Cap.', value: 0.07 }]} />
+            <DistributionBar dist={dists.delinquency} label="Delinquency Rate" thresholds={[{ label: 'Watch', value: 0.01 }, { label: 'Concern', value: 0.02 }]} />
+            <DistributionBar dist={dists.loan_to_share} label="Loan-to-Share" thresholds={[{ label: 'Low', value: 0.70 }, { label: 'High', value: 0.85 }]} />
           </div>
         )}
+
+        {/* NWR distribution */}
+        {nwrDist.length > 0 && (
+          <div className="pulse-section">
+            <h3>Net Worth Ratio Distribution</h3>
+            <div className="nwr-dist">
+              {nwrDist.map((band) => (
+                <div key={band.band} className="nwr-band">
+                  <div className="nwr-band-label">{band.band}</div>
+                  <div className="nwr-band-bar-wrap">
+                    <div className="nwr-band-bar" style={{ width: `${Math.min(band.pct * 2, 100)}%` }} />
+                  </div>
+                  <div className="nwr-band-count mono">{band.count.toLocaleString()}</div>
+                  <div className="nwr-band-pct mono">({band.pct.toFixed(1)}%)</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="pulse-two-col">
+          {/* Top movers */}
+          {movers.length > 0 && (
+            <div className="pulse-section">
+              <h3>Top ROA Movers (QoQ)</h3>
+              <table className="pulse-table">
+                <thead><tr><th>Name</th><th>State</th><th>ROA</th><th>Change</th></tr></thead>
+                <tbody>
+                  {movers.slice(0, 10).map((m) => (
+                    <tr key={m.cu_number}>
+                      <td>
+                        <button type="button" className="pulse-link"
+                          onClick={() => onSelectInstitution({ cu_number: m.cu_number, name: m.name, state: m.state })}>
+                          {m.name}
+                        </button>
+                      </td>
+                      <td>{m.state}</td>
+                      <td className="mono">{fmtPct(m.roa_curr)}</td>
+                      <td className={`mono ${m.roa_delta >= 0 ? 'text-pos' : 'text-neg'}`}>{fmtPctChange(m.roa_delta)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Risk radar */}
+          {radar.length > 0 && (
+            <div className="pulse-section">
+              <h3>Risk Radar</h3>
+              <table className="pulse-table">
+                <thead><tr><th>Name</th><th>State</th><th>NWR</th><th>Delinquency</th></tr></thead>
+                <tbody>
+                  {radar.slice(0, 10).map((r) => (
+                    <tr key={r.cu_number}>
+                      <td>
+                        <button type="button" className="pulse-link"
+                          onClick={() => onSelectInstitution({ cu_number: r.cu_number, name: r.name, state: r.state })}>
+                          {r.name}
+                        </button>
+                      </td>
+                      <td>{r.state}</td>
+                      <td className={`mono ${r.net_worth_ratio < 0.08 ? 'text-neg' : ''}`}>{fmtPct(r.net_worth_ratio)}</td>
+                      <td className={`mono ${r.delinquency_ratio > 0.02 ? 'text-neg' : ''}`}>{fmtPct(r.delinquency_ratio)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
       </div>
     </section>
   );

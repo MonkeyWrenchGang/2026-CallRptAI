@@ -416,18 +416,64 @@ def pulse(
         below_7 = sum(1 for v in nwr_vals if v is not None and v < 0.07)
         below_10 = sum(1 for v in nwr_vals if v is not None and v < 0.10)
 
+        median_eff = median([r.get("efficiency_ratio") for r in all_list if r.get("efficiency_ratio")])
+
         summary = {
             "quarter":          latest_q,
+            "prev_quarter":     prev_q,
             "cu_count":         n,
             "median_roa":       median(roa_vals),
             "median_nwr":       median(nwr_vals),
             "median_delinquency": median(delinq_vals),
             "median_loan_to_share": median(lts_vals),
+            "median_efficiency": median_eff,
             "total_assets":     sum(v for v in assets_vals if v),
             "total_members":    sum(members_vals),
             "below_7pct_nwr":   below_7,
             "below_10pct_nwr":  below_10,
         }
+
+        # Previous quarter summary for QoQ changes
+        prev_rows = conn.execute("""
+            SELECT f.roa, f.net_worth_ratio, f.delinquency_ratio,
+                   f.loan_to_share_ratio, f.efficiency_ratio,
+                   f.total_assets, f.member_count
+            FROM financial_data f
+            WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+        """, (prev_q,)).fetchall()
+        prev_list = rows_as_dicts(prev_rows)
+
+        prev_summary = {
+            "median_roa": median([r["roa"] for r in prev_list]),
+            "median_nwr": median([r["net_worth_ratio"] for r in prev_list]),
+            "median_delinquency": median([r["delinquency_ratio"] for r in prev_list]),
+            "median_loan_to_share": median([r["loan_to_share_ratio"] for r in prev_list]),
+            "median_efficiency": median([r.get("efficiency_ratio") for r in prev_list if r.get("efficiency_ratio")]),
+            "total_assets": sum(v for v in [r["total_assets"] for r in prev_list] if v),
+            "total_members": sum(r["member_count"] for r in prev_list if r.get("member_count")),
+        }
+
+        # Industry distribution percentiles (for gauge visualization)
+        def percentile_at(vals, pct):
+            s = sorted(v for v in vals if v is not None)
+            if not s:
+                return None
+            idx = int(len(s) * pct / 100)
+            idx = min(idx, len(s) - 1)
+            return round(s[idx], 6)
+
+        distributions = {}
+        for metric, vals in [
+            ("roa", roa_vals), ("nwr", nwr_vals),
+            ("delinquency", delinq_vals), ("loan_to_share", lts_vals),
+        ]:
+            distributions[metric] = {
+                "p10": percentile_at(vals, 10),
+                "p25": percentile_at(vals, 25),
+                "p50": percentile_at(vals, 50),
+                "p75": percentile_at(vals, 75),
+                "p90": percentile_at(vals, 90),
+            }
 
         # NWR distribution bands
         bands = [
@@ -514,11 +560,13 @@ def pulse(
         market_trend = list(reversed(rows_as_dicts(hist_rows)))
 
         return {
-            "summary":      summary,
-            "nwr_dist":     nwr_dist,
-            "top_movers":   top_movers,
-            "risk_radar":   risk_radar,
-            "market_trend": market_trend,
+            "summary":        summary,
+            "prev_summary":   prev_summary,
+            "distributions":  distributions,
+            "nwr_dist":       nwr_dist,
+            "top_movers":     top_movers,
+            "risk_radar":     risk_radar,
+            "market_trend":   market_trend,
         }
 
 

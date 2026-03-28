@@ -2040,11 +2040,77 @@ body {
   width: 100%;
 }
 
+/* ── Pulse Top Row ──────────────────────────────────────────────────── */
+.pulse-top-row {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+  margin-top: 14px;
+}
+
+.pulse-gauge-wrap {
+  flex-shrink: 0;
+  text-align: center;
+}
+
+.pulse-gauge-wrap h3 {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.pulse-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pulse-print-btn {
+  padding: 5px 14px;
+  font-size: 11px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 500;
+}
+.pulse-print-btn:hover { background: var(--bg-muted); }
+
+/* ── Health Gauge ──────────────────────────────────────────────────── */
+.health-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-score {
+  font-size: 28px;
+  font-weight: 700;
+  margin-top: -20px;
+}
+
+.gauge-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* ── QoQ Arrows ────────────────────────────────────────────────────── */
+.qoq-arrow {
+  display: block;
+  font-size: 10px;
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 2px;
+}
+.qoq-flat { font-size: 10px; color: var(--text-muted); }
+
 .pulse-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
   gap: 10px;
-  margin-top: 14px;
+  flex: 1;
 }
 
 .pulse-kpi {
@@ -2092,6 +2158,140 @@ body {
   font-weight: 600;
   color: var(--text);
   margin-bottom: 10px;
+}
+
+/* ── AI Insight ────────────────────────────────────────────────────── */
+.ai-insight-section {
+  margin: 16px 0;
+  padding: 14px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius-lg);
+}
+
+.ai-insight-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.ai-insight-header h3 {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.ai-insight-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-top: 8px;
+}
+
+/* ── Pulse Sparkline Grid ──────────────────────────────────────────── */
+.pulse-sparkline-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.pulse-sparkline-card {
+  background: var(--bg-surface);
+  border: 0.5px solid var(--border);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+}
+
+.pulse-sparkline-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 6px;
+}
+
+.pulse-sparkline-label {
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.pulse-sparkline-val {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ── Distribution Bars ─────────────────────────────────────────────── */
+.dist-bar-section {
+  margin-bottom: 14px;
+}
+
+.dist-bar-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.dist-bar-track {
+  position: relative;
+  height: 20px;
+  background: var(--bg-muted);
+  border-radius: 4px;
+  overflow: visible;
+}
+
+.dist-bar-whisker {
+  position: absolute;
+  top: 8px;
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 2px;
+}
+
+.dist-bar-iqr {
+  position: absolute;
+  top: 3px;
+  height: 14px;
+  background: var(--teal-soft);
+  border: 1px solid var(--teal);
+  border-radius: 3px;
+  opacity: 0.7;
+}
+
+.dist-bar-median {
+  position: absolute;
+  top: 0;
+  width: 3px;
+  height: 20px;
+  background: var(--teal-dark);
+  border-radius: 1px;
+  transform: translateX(-1px);
+}
+
+.dist-bar-threshold {
+  position: absolute;
+  top: 0;
+  width: 1px;
+  height: 20px;
+  background: #dc2626;
+  opacity: 0.5;
+}
+
+.dist-bar-values {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: 'IBM Plex Mono', monospace;
+  margin-top: 2px;
+}
+
+@media (max-width: 700px) {
+  .pulse-top-row { flex-direction: column; }
+  .pulse-sparkline-grid { grid-template-columns: 1fr; }
 }
 
 .pulse-two-col {
