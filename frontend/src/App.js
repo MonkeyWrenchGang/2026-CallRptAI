@@ -26,7 +26,7 @@ const MARKET_SUGGESTIONS = [
 ];
 
 // ── Pulse view ────────────────────────────────────────────────────────────
-function PulseView() {
+function PulseView({ onSelectInstitution }) {
   const [pulse, setPulse] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -148,7 +148,15 @@ function PulseView() {
               <tbody>
                 {movers.slice(0, 10).map((m) => (
                   <tr key={m.cu_number}>
-                    <td>{m.name}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="pulse-link"
+                        onClick={() => onSelectInstitution({ cu_number: m.cu_number, name: m.name, state: m.state })}
+                      >
+                        {m.name}
+                      </button>
+                    </td>
                     <td>{m.state}</td>
                     <td className="mono">{fmtPct(m.roa_curr)}</td>
                     <td className={`mono ${m.roa_delta >= 0 ? 'text-pos' : 'text-neg'}`}>
@@ -177,7 +185,15 @@ function PulseView() {
               <tbody>
                 {radar.slice(0, 10).map((r) => (
                   <tr key={r.cu_number}>
-                    <td>{r.name}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="pulse-link"
+                        onClick={() => onSelectInstitution({ cu_number: r.cu_number, name: r.name, state: r.state })}
+                      >
+                        {r.name}
+                      </button>
+                    </td>
                     <td>{r.state}</td>
                     <td className={`mono ${r.net_worth_ratio < 0.08 ? 'text-neg' : ''}`}>
                       {fmtPct(r.net_worth_ratio)}
@@ -385,7 +401,7 @@ export default function App() {
           )}
 
           {activeView === 'pulse' ? (
-            <PulseView />
+            <PulseView onSelectInstitution={selectInstitution} />
           ) : activeView === 'ask' ? (
             <div className="hybrid-main">
               <ChatPanel

@@ -1830,6 +1830,25 @@ body {
 .text-pos { color: #059669; }
 .text-neg { color: #dc2626; }
 
+.pulse-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--teal-dark);
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+  transition: text-decoration-color 0.15s, color 0.15s;
+}
+
+.pulse-link:hover {
+  color: var(--teal);
+  text-decoration-color: var(--teal);
+}
+
 .nwr-dist {
   display: grid;
   gap: 6px;
