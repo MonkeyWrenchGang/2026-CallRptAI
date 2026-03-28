@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import OverviewRail from './components/OverviewRail';
 import ComparePanel from './components/ComparePanel';
+import ReportModal from './components/ReportModal';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
@@ -227,6 +228,7 @@ export default function App() {
   const [overviewDrawerOpen, setOverviewDrawerOpen] = useState(
     () => typeof window !== 'undefined' && window.innerWidth > 900
   );
+  const [reportCU, setReportCU] = useState(null); // cu_number for report modal
   const [activeView, setActiveView] = useState('ask');
 
   const isNarrow = useMediaQuery('(max-width: 900px)');
@@ -468,12 +470,25 @@ export default function App() {
                   activeCU={activeCU}
                   onAddCompare={() => setActiveView('compare')}
                   onOpenCompare={() => setActiveView('compare')}
+                  onGenerateReport={(cuNum) => setReportCU(cuNum)}
+                  onAskAbout={(name) => {
+                    setActiveView('ask');
+                    sendMessage(`Give me an executive overview of ${name}`);
+                  }}
                 />
               </div>
             )}
           </div>
         </div>
       </div>
+
+      {/* Report generation modal */}
+      {reportCU && (
+        <ReportModal
+          cuNumber={reportCU}
+          onClose={() => setReportCU(null)}
+        />
+      )}
     </div>
   );
 }
