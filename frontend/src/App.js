@@ -230,6 +230,7 @@ export default function App() {
   );
   const [reportCU, setReportCU] = useState(null); // cu_number for report modal
   const [activeView, setActiveView] = useState('ask');
+  const [compareCUs, setCompareCUs] = useState([]); // persistent compare list
 
   const isNarrow = useMediaQuery('(max-width: 900px)');
 
@@ -454,6 +455,8 @@ export default function App() {
               ) : (
                 <ComparePanel
                   activeCU={activeCU}
+                  compareCUs={compareCUs}
+                  onCompareCUsChange={setCompareCUs}
                   onSendChat={(text) => {
                     setActiveView('ask');
                     sendMessage(text);
@@ -468,8 +471,20 @@ export default function App() {
               >
                 <OverviewRail
                   activeCU={activeCU}
-                  onAddCompare={() => setActiveView('compare')}
+                  onAddCompare={(cuNum) => {
+                    setCompareCUs((prev) =>
+                      prev.includes(cuNum) ? prev : [...prev, cuNum].slice(0, 8)
+                    );
+                    setActiveView('compare');
+                  }}
                   onOpenCompare={() => setActiveView('compare')}
+                  onComparePeers={(peerNums) => {
+                    setCompareCUs((prev) => {
+                      const all = [...new Set([activeCU, ...peerNums, ...prev])];
+                      return all.slice(0, 8);
+                    });
+                    setActiveView('compare');
+                  }}
                   onGenerateReport={(cuNum) => setReportCU(cuNum)}
                   onAskAbout={(name) => {
                     setActiveView('ask');

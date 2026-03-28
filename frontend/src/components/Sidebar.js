@@ -136,7 +136,17 @@ export default function Sidebar({
                     }
                   }}
                 >
-                  <div className="inst-name">{p.name}</div>
+                  <div className="inst-name-row">
+                    <span className="inst-name">{p.name}</span>
+                    {p.similarity_score != null && (
+                      <span className={`sim-pill ${
+                        p.similarity_score >= 80 ? 'sim-high' :
+                        p.similarity_score >= 60 ? 'sim-med' : 'sim-low'
+                      }`}>
+                        {Math.round(p.similarity_score)}%
+                      </span>
+                    )}
+                  </div>
                   <div className="inst-metrics">
                     <span className="inst-metric">{fmtAssets(p.total_assets)}</span>
                     {p.roa != null && (

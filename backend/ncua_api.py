@@ -662,17 +662,50 @@ def get_institution_peers(cu_number: str):
 
         peers_list = rows_as_dicts(peers_rows)
 
-        # Rank by |log_assets difference| from subject CU
-        if subject_log_assets is not None:
-            for p in peers_list:
-                ta = p.get("total_assets") or 0
-                if ta > 0:
-                    p["_log_dist"] = abs(_math.log10(ta) - subject_log_assets)
-                else:
-                    p["_log_dist"] = float("inf")
-            peers_list.sort(key=lambda p: p["_log_dist"])
-            for p in peers_list:
-                p.pop("_log_dist", None)
+        # Get subject CU's metrics for similarity scoring
+        subject_metrics_row = conn.execute("""
+            SELECT f.roa, f.net_worth_ratio, f.delinquency_ratio,
+                   f.loan_to_share_ratio, f.efficiency_ratio, f.member_count
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE i.cu_number = ? AND f.quarter_label = ?
+        """, (cu_number, quarter_label)).fetchone()
+        subject_metrics = dict(subject_metrics_row) if subject_metrics_row else {}
+
+        # Compute similarity score (0-100) based on multiple dimensions
+        def _similarity(peer):
+            score = 100.0
+            # Asset size distance (log scale, weighted 30%)
+            ta = peer.get("total_assets") or 0
+            if subject_log_assets and ta > 0:
+                asset_dist = abs(_math.log10(ta) - subject_log_assets)
+                score -= min(asset_dist * 15, 30)  # max 30pt penalty
+            else:
+                score -= 30
+
+            # ROA distance (weighted 20%)
+            if subject_metrics.get("roa") is not None and peer.get("roa") is not None:
+                roa_dist = abs(peer["roa"] - subject_metrics["roa"])
+                score -= min(roa_dist * 2000, 20)
+            # NWR distance (weighted 20%)
+            if subject_metrics.get("net_worth_ratio") is not None and peer.get("net_worth_ratio") is not None:
+                nwr_dist = abs(peer["net_worth_ratio"] - subject_metrics["net_worth_ratio"])
+                score -= min(nwr_dist * 500, 20)
+            # Delinquency distance (weighted 15%)
+            if subject_metrics.get("delinquency_ratio") is not None and peer.get("delinquency_ratio") is not None:
+                del_dist = abs(peer["delinquency_ratio"] - subject_metrics["delinquency_ratio"])
+                score -= min(del_dist * 1500, 15)
+            # L/S ratio distance (weighted 15%)
+            if subject_metrics.get("loan_to_share_ratio") is not None and peer.get("loan_to_share_ratio") is not None:
+                ls_dist = abs(peer["loan_to_share_ratio"] - subject_metrics["loan_to_share_ratio"])
+                score -= min(ls_dist * 100, 15)
+
+            return max(round(score, 1), 0)
+
+        for p in peers_list:
+            p["similarity_score"] = _similarity(p)
+
+        peers_list.sort(key=lambda p: -p["similarity_score"])
 
         top_peers = peers_list[:10]
 

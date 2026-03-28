@@ -65,6 +65,7 @@ export default function OverviewRail({
   activeCU,
   onAddCompare,
   onOpenCompare,
+  onComparePeers,
   onGenerateReport,
   onAskAbout,
 }) {
@@ -358,11 +359,21 @@ export default function OverviewRail({
                 {peersLoading && <div className="peer-loading">Loading peers...</div>}
                 {peers && peers.length > 0 && (
                   <div className="peer-list-section">
-                    <div className="peer-list-label">Closest Peers by Asset Size</div>
+                    <div className="peer-list-label">Most Similar Peers</div>
                     <div className="peer-list">
                       {peers.slice(0, 5).map((p) => (
                         <div key={p.cu_number} className="peer-list-item">
-                          <div className="peer-list-name">{p.name}</div>
+                          <div className="peer-list-top">
+                            <span className="peer-list-name">{p.name}</span>
+                            {p.similarity_score != null && (
+                              <span className={`similarity-badge ${
+                                p.similarity_score >= 80 ? 'sim-high' :
+                                p.similarity_score >= 60 ? 'sim-med' : 'sim-low'
+                              }`}>
+                                {Math.round(p.similarity_score)}% match
+                              </span>
+                            )}
+                          </div>
                           <div className="peer-list-meta">
                             <span>{p.state}</span>
                             <span className="mono">{fmtAssets(p.total_assets)}</span>
@@ -375,18 +386,22 @@ export default function OverviewRail({
                   </div>
                 )}
 
-                {onOpenCompare && (
-                  <div className="rail-actions">
-                    <button type="button" className="rail-action-btn" onClick={onOpenCompare}>
-                      Open Compare
+                <div className="rail-actions">
+                  {onComparePeers && peers && peers.length > 0 && (
+                    <button
+                      type="button"
+                      className="rail-action-btn primary"
+                      onClick={() => onComparePeers(peers.slice(0, 5).map((p) => p.cu_number))}
+                    >
+                      Compare with Top 5 Peers
                     </button>
-                    {onAddCompare && (
-                      <button type="button" className="rail-action-btn secondary" onClick={() => onAddCompare(activeCU)}>
-                        + Add to Compare
-                      </button>
-                    )}
-                  </div>
-                )}
+                  )}
+                  {onAddCompare && (
+                    <button type="button" className="rail-action-btn secondary" onClick={() => onAddCompare(activeCU)}>
+                      + Add to Compare
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

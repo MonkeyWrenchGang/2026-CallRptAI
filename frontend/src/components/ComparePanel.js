@@ -4,8 +4,6 @@ import { fmtPct, fmtMembers } from '../utils/format';
 const TEAL = '#1D9E75';
 const COLORS = ['#1D9E75', '#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
 
-const DEFAULT_CU_NUMBERS = ['5536', '227', '62604']; // Navy Federal, Pentagon, Boeing Employees
-
 // Fallback name cache so chips show names before API data loads
 const NAME_CACHE = {
   '5536':  'Navy Federal CU',
@@ -76,8 +74,9 @@ function MultiLineTrend({ cus, width = 560, height = 120 }) {
   );
 }
 
-export default function ComparePanel({ activeCU, onSendChat }) {
-  const [cuNumbers, setCuNumbers] = useState(DEFAULT_CU_NUMBERS);
+export default function ComparePanel({ activeCU, compareCUs, onCompareCUsChange, onSendChat }) {
+  const cuNumbers = compareCUs || [];
+  const setCuNumbers = onCompareCUsChange || (() => {});
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -116,7 +115,7 @@ export default function ComparePanel({ activeCU, onSendChat }) {
     setCuNumbers((prev) =>
       prev.includes(activeCU) ? prev : [activeCU, ...prev].slice(0, 8)
     );
-  }, [activeCU]);
+  }, [activeCU, setCuNumbers]);
 
   // Fetch compare data when cuNumbers changes
   useEffect(() => {
