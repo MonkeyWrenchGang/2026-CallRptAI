@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fmtPct, fmtMembers } from '../utils/format';
+import PeerGroupBuilder from './PeerGroupBuilder';
 
 const TEAL = '#1D9E75';
 const COLORS = ['#1D9E75', '#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -77,6 +78,7 @@ function MultiLineTrend({ cus, width = 560, height = 120 }) {
 export default function ComparePanel({ activeCU, compareCUs, onCompareCUsChange, onSendChat }) {
   const cuNumbers = compareCUs || [];
   const setCuNumbers = onCompareCUsChange || (() => {});
+  const [compareMode, setCompareMode] = useState('search'); // 'search' | 'build'
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -171,6 +173,21 @@ export default function ComparePanel({ activeCU, compareCUs, onCompareCUsChange,
           <span className="compare-quarter-label">Data: {data.quarter}</span>
         )}
       </header>
+
+      {/* Mode toggle */}
+      <div className="compare-mode-toggle">
+        <button type="button" className={`compare-mode-btn ${compareMode === 'search' ? 'active' : ''}`}
+          onClick={() => setCompareMode('search')}>Search</button>
+        <button type="button" className={`compare-mode-btn ${compareMode === 'build' ? 'active' : ''}`}
+          onClick={() => setCompareMode('build')}>Build Peer Group</button>
+      </div>
+
+      {compareMode === 'build' && (
+        <PeerGroupBuilder onLoadGroup={(nums) => {
+          setCuNumbers(nums);
+          setCompareMode('search');
+        }} />
+      )}
 
       {/* CU selector */}
       <section className="compare-controls">

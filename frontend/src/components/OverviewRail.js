@@ -77,6 +77,7 @@ export default function OverviewRail({
   const [summaryLoading, setSummaryLoading] = useState(false);
   const [peers, setPeers] = useState(null);
   const [peersLoading, setPeersLoading] = useState(false);
+  const [marketShare, setMarketShare] = useState(null);
 
   useEffect(() => {
     if (!activeCU) {
@@ -84,6 +85,7 @@ export default function OverviewRail({
       setError(false);
       setAiSummary(null);
       setPeers(null);
+      setMarketShare(null);
       return;
     }
     let cancelled = false;
@@ -91,6 +93,7 @@ export default function OverviewRail({
     setError(false);
     setAiSummary(null);
     setPeers(null);
+    setMarketShare(null);
     setActiveTab('overview');
     fetch(`/api/ncua/institutions/${activeCU}`)
       .then((r) => {
@@ -103,6 +106,11 @@ export default function OverviewRail({
       .catch(() => {
         if (!cancelled) { setError(true); setLoading(false); }
       });
+    // Fetch market share in parallel
+    fetch(`/api/ncua/institutions/${activeCU}/market-share`)
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setMarketShare(d); })
+      .catch(() => {});
     return () => { cancelled = true; };
   }, [activeCU]);
 
@@ -276,6 +284,27 @@ export default function OverviewRail({
                   {summaryLoading && <div className="ai-brief-loading">Analyzing...</div>}
                   {aiSummary && <div className="ai-brief-text">{aiSummary}</div>}
                 </div>
+
+                {/* Market Share */}
+                {marketShare && marketShare.trend && marketShare.trend.length > 0 && (
+                  <div className="market-share-section">
+                    <div className="peer-list-label">Market Share in {marketShare.state}</div>
+                    {[
+                      { field: 'asset_share', label: 'Assets', color: TEAL },
+                      { field: 'loan_share', label: 'Loans', color: '#2563eb' },
+                      { field: 'member_share', label: 'Members', color: '#9333ea' },
+                    ].map(({ field, label, color }) => {
+                      const latest = marketShare.trend[marketShare.trend.length - 1];
+                      return (
+                        <div key={field} className="market-share-row">
+                          <span className="market-share-label">{label}</span>
+                          <Sparkline data={marketShare.trend} field={field} width={100} height={24} color={color} />
+                          <span className="market-share-val mono">{fmtPct(latest?.[field])}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 

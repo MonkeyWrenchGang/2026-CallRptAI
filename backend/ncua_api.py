@@ -839,3 +839,487 @@ def get_peer_groups():
             "cluster_count": len(clusters),
             "clusters": clusters,
         }
+
+
+# ── /peer-group-stats ─────────────────────────────────────────────────────
+
+@router.get("/peer-group-stats")
+def peer_group_stats(
+    state: str = Query("", description="2-letter state code"),
+    charter_type: str = Query(""),
+    min_assets: Optional[float] = Query(None),
+    max_assets: Optional[float] = Query(None),
+):
+    """Return aggregate stats for CUs matching filter criteria."""
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+        filters = ["f.quarter_label = ?", "f.roa IS NOT NULL"]
+        params: list = [latest_q]
+        if state:
+            filters.append("i.state = ?")
+            params.append(state.upper())
+        if charter_type:
+            filters.append("i.charter_type = ?")
+            params.append(charter_type)
+        if min_assets is not None:
+            filters.append("f.total_assets >= ?")
+            params.append(min_assets)
+        if max_assets is not None:
+            filters.append("f.total_assets <= ?")
+            params.append(max_assets)
+        where = " AND ".join(filters)
+
+        rows = conn.execute(f"""
+            SELECT i.cu_number, i.name, i.state,
+                   ROUND(f.total_assets, 0) AS total_assets,
+                   ROUND(f.roa, 6) AS roa,
+                   ROUND(f.net_worth_ratio, 6) AS net_worth_ratio,
+                   ROUND(f.delinquency_ratio, 6) AS delinquency_ratio,
+                   f.member_count
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE {where}
+            ORDER BY f.total_assets DESC
+            LIMIT 200
+        """, params).fetchall()
+        results = rows_as_dicts(rows)
+
+        roa_vals = [r["roa"] for r in results if r["roa"] is not None]
+        nwr_vals = [r["net_worth_ratio"] for r in results if r["net_worth_ratio"] is not None]
+
+        return {
+            "quarter": latest_q,
+            "count": len(results),
+            "cu_numbers": [r["cu_number"] for r in results],
+            "institutions": results[:50],
+            "avg_roa": round(sum(roa_vals) / len(roa_vals), 6) if roa_vals else None,
+            "avg_nwr": round(sum(nwr_vals) / len(nwr_vals), 6) if nwr_vals else None,
+            "total_assets": sum(r["total_assets"] or 0 for r in results),
+        }
+
+
+# ── /institutions/{cu_number}/market-share ────────────────────────────────
+
+@router.get("/institutions/{cu_number}/market-share")
+def market_share(cu_number: str):
+    """CU's share of assets, loans, members within its state over 8 quarters."""
+    with get_conn() as conn:
+        inst = conn.execute(
+            "SELECT id, state FROM institutions WHERE cu_number = ?", (cu_number,)
+        ).fetchone()
+        if not inst:
+            raise HTTPException(404, f"CU {cu_number} not found")
+        inst_id, state = inst["id"], inst["state"]
+
+        rows = conn.execute("""
+            SELECT
+                f.quarter_label,
+                f.total_assets   AS cu_assets,
+                f.total_loans    AS cu_loans,
+                f.member_count   AS cu_members,
+                state_agg.state_assets,
+                state_agg.state_loans,
+                state_agg.state_members
+            FROM financial_data f
+            INNER JOIN (
+                SELECT f2.quarter_label AS ql,
+                       SUM(f2.total_assets)  AS state_assets,
+                       SUM(f2.total_loans)   AS state_loans,
+                       SUM(f2.member_count)  AS state_members
+                FROM financial_data f2
+                JOIN institutions i2 ON i2.id = f2.institution_id
+                WHERE i2.state = ?
+                GROUP BY f2.quarter_label
+            ) state_agg ON state_agg.ql = f.quarter_label
+            WHERE f.institution_id = ?
+            ORDER BY f.report_date DESC
+            LIMIT 8
+        """, (state, inst_id)).fetchall()
+
+        result = []
+        for r in reversed(rows_as_dicts(rows)):
+            sa = r["state_assets"] or 1
+            sl = r["state_loans"] or 1
+            sm = r["state_members"] or 1
+            result.append({
+                "quarter": r["quarter_label"],
+                "asset_share": round((r["cu_assets"] or 0) / sa, 6),
+                "loan_share": round((r["cu_loans"] or 0) / sl, 6),
+                "member_share": round((r["cu_members"] or 0) / sm, 6),
+                "cu_assets": r["cu_assets"],
+                "state_assets": r["state_assets"],
+            })
+
+        return {"cu_number": cu_number, "state": state, "trend": result}
+
+
+# ── /ma-radar ─────────────────────────────────────────────────────────────
+
+@router.get("/ma-radar")
+def ma_radar(
+    state: str = Query("", description="Filter by state"),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """Flag CUs matching acquisition profiles."""
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+        prev_q = _prev_quarter_label(latest_q)
+        prev2_q = _prev_quarter_label(prev_q)
+
+        state_filter = ""
+        params: list = [prev_q, prev2_q, latest_q]
+        if state:
+            state_filter = "AND i.state = ?"
+            params.append(state.upper())
+        params.append(limit)
+
+        rows = conn.execute(f"""
+            SELECT
+                i.cu_number, i.name, i.state, i.city, i.charter_type,
+                curr.total_assets,
+                curr.member_count  AS members_curr,
+                prev1.member_count AS members_prev1,
+                prev2.member_count AS members_prev2,
+                curr.net_worth_ratio  AS nwr_curr,
+                prev1.net_worth_ratio AS nwr_prev1,
+                prev2.net_worth_ratio AS nwr_prev2,
+                curr.efficiency_ratio,
+                curr.roa,
+                curr.delinquency_ratio,
+                curr.camel_class
+            FROM financial_data curr
+            JOIN institutions i ON i.id = curr.institution_id
+            LEFT JOIN financial_data prev1
+                ON prev1.institution_id = curr.institution_id
+                AND prev1.quarter_label = ?
+            LEFT JOIN financial_data prev2
+                ON prev2.institution_id = curr.institution_id
+                AND prev2.quarter_label = ?
+            WHERE curr.quarter_label = ?
+              AND curr.total_assets < 100000000
+              AND curr.total_assets > 1000000
+              AND curr.net_worth_ratio < 0.09
+              {state_filter}
+            ORDER BY curr.net_worth_ratio ASC
+            LIMIT ?
+        """, params).fetchall()
+
+        results = []
+        for r in rows_as_dicts(rows):
+            flags = []
+            score = 0
+
+            flags.append("small_assets")
+            score += 1
+
+            nwr_c = r.get("nwr_curr")
+            nwr_p1 = r.get("nwr_prev1")
+            if nwr_c is not None and nwr_c < 0.07:
+                flags.append("nwr_critical")
+                score += 2
+            elif nwr_c is not None and nwr_p1 is not None and nwr_c < nwr_p1:
+                flags.append("nwr_declining")
+                score += 1
+
+            mc = r.get("members_curr")
+            mp1 = r.get("members_prev1")
+            if mc and mp1 and mc < mp1:
+                flags.append("membership_declining")
+                score += 1
+
+            eff = r.get("efficiency_ratio")
+            if eff and eff > 0.85:
+                flags.append("high_efficiency")
+                score += 1
+
+            delinq = r.get("delinquency_ratio")
+            if delinq and delinq > 0.02:
+                flags.append("high_delinquency")
+                score += 1
+
+            if score >= 2:
+                r["flags"] = flags
+                r["risk_score"] = score
+                results.append(r)
+
+        results.sort(key=lambda x: -x["risk_score"])
+        return {"quarter": latest_q, "count": len(results), "candidates": results}
+
+
+# ── /landscape ────────────────────────────────────────────────────────────
+
+@router.get("/landscape")
+def landscape():
+    """State-level aggregates for competitive landscape view."""
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+        rows = conn.execute("""
+            SELECT
+                i.state,
+                COUNT(*)                          AS cu_count,
+                ROUND(SUM(f.total_assets), 0)     AS total_assets,
+                SUM(f.member_count)               AS total_members,
+                AVG(f.roa)                        AS avg_roa,
+                AVG(f.net_worth_ratio)            AS avg_nwr,
+                AVG(f.delinquency_ratio)          AS avg_delinquency,
+                AVG(f.efficiency_ratio)           AS avg_efficiency,
+                AVG(f.loan_to_share_ratio)        AS avg_loan_to_share,
+                SUM(CASE WHEN f.net_worth_ratio < 0.07 THEN 1 ELSE 0 END) AS below_7pct
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+            GROUP BY i.state
+            ORDER BY total_assets DESC
+        """, (latest_q,)).fetchall()
+
+        results = []
+        for r in rows_as_dicts(rows):
+            avg_roa = r.get("avg_roa") or 0
+            avg_nwr = r.get("avg_nwr") or 0
+            avg_del = r.get("avg_delinquency") or 0
+            hs = 50 + (avg_roa - 0.005) * 3000 + (avg_nwr - 0.08) * 500 - (avg_del - 0.01) * 2000
+            r["health_score"] = max(0, min(100, round(hs)))
+            r["avg_roa"] = round(avg_roa, 6)
+            r["avg_nwr"] = round(avg_nwr, 6)
+            r["avg_delinquency"] = round(avg_del, 6)
+            r["avg_efficiency"] = round(r.get("avg_efficiency") or 0, 4)
+            r["avg_loan_to_share"] = round(r.get("avg_loan_to_share") or 0, 4)
+            results.append(r)
+
+        return {"quarter": latest_q, "states": results}
+
+
+# ── /market-share-analysis ─────────────────────────────────────────────
+
+@router.get("/market-share-analysis")
+def market_share_analysis(
+    state: str = Query("", description="2-letter state code (required)"),
+    cu_number: str = Query("", description="Optional CU to highlight"),
+    metric: str = Query("total_shares", description="total_shares | total_loans | member_count"),
+):
+    """
+    State-level market share analysis:
+      - Top 15 CUs by share of deposits/loans/members in a state
+      - 8-quarter trend for each top CU
+      - State totals over time
+      - Concentration metrics (HHI, top-5 share)
+    """
+    allowed_metrics = {"total_shares", "total_loans", "member_count"}
+    if metric not in allowed_metrics:
+        metric = "total_shares"
+
+    metric_labels = {
+        "total_shares": "Deposits",
+        "total_loans": "Loans",
+        "member_count": "Members",
+    }
+
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+
+        if not state:
+            # Return list of states for picker
+            states = conn.execute("""
+                SELECT DISTINCT i.state, COUNT(*) as cu_count
+                FROM institutions i
+                JOIN financial_data f ON f.institution_id = i.id
+                WHERE f.quarter_label = ? AND i.state IS NOT NULL AND i.state != ''
+                GROUP BY i.state
+                ORDER BY cu_count DESC
+            """, (latest_q,)).fetchall()
+            return {"states": [{"state": r["state"], "cu_count": r["cu_count"]} for r in states]}
+
+        state = state.upper()
+
+        # ── State totals over last 8 quarters ──
+        state_totals = conn.execute("""
+            SELECT
+                f.quarter_label,
+                SUM(f.total_shares)  AS total_deposits,
+                SUM(f.total_loans)   AS total_loans,
+                SUM(f.member_count)  AS total_members,
+                COUNT(*)             AS cu_count
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE i.state = ?
+            GROUP BY f.quarter_label
+            ORDER BY f.report_date DESC
+            LIMIT 8
+        """, (state,)).fetchall()
+        state_trend = list(reversed(rows_as_dicts(state_totals)))
+
+        # ── Top 15 CUs by selected metric (latest quarter) ──
+        top_cus = conn.execute(f"""
+            SELECT
+                i.cu_number,
+                i.name,
+                i.city,
+                f.total_shares,
+                f.total_loans,
+                f.member_count,
+                f.total_assets,
+                f.roa,
+                f.net_worth_ratio
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE f.quarter_label = ? AND i.state = ?
+                AND f.{metric} IS NOT NULL AND f.{metric} > 0
+            ORDER BY f.{metric} DESC
+            LIMIT 15
+        """, (latest_q, state)).fetchall()
+        top_cus = rows_as_dicts(top_cus)
+
+        # Get state total for latest quarter to compute shares
+        latest_state = next((t for t in state_trend if t["quarter_label"] == latest_q), None)
+        state_total_metric = 0
+        if latest_state:
+            metric_map = {
+                "total_shares": "total_deposits",
+                "total_loans": "total_loans",
+                "member_count": "total_members",
+            }
+            state_total_metric = latest_state.get(metric_map[metric]) or 1
+
+        # Compute shares + build rankings
+        rankings = []
+        top_cu_numbers = []
+        for rank, cu in enumerate(top_cus, 1):
+            cu_val = cu.get(metric) or 0
+            share = cu_val / state_total_metric if state_total_metric else 0
+            rankings.append({
+                "rank": rank,
+                "cu_number": cu["cu_number"],
+                "name": cu["name"],
+                "city": cu["city"],
+                "value": cu_val,
+                "share": round(share, 6),
+                "total_assets": cu["total_assets"],
+                "roa": cu["roa"],
+                "net_worth_ratio": cu["net_worth_ratio"],
+            })
+            top_cu_numbers.append(cu["cu_number"])
+
+        # ── 8-quarter trend for top CUs ──
+        if top_cu_numbers:
+            placeholders = ",".join("?" * len(top_cu_numbers))
+            trend_rows = conn.execute(f"""
+                SELECT
+                    i.cu_number,
+                    f.quarter_label,
+                    f.{metric} AS value
+                FROM financial_data f
+                JOIN institutions i ON i.id = f.institution_id
+                WHERE i.cu_number IN ({placeholders}) AND i.state = ?
+                ORDER BY f.report_date
+            """, (*top_cu_numbers, state)).fetchall()
+
+            # Group by cu_number
+            cu_trends: dict[str, list] = {}
+            for r in trend_rows:
+                cn = r["cu_number"]
+                if cn not in cu_trends:
+                    cu_trends[cn] = []
+                cu_trends[cn].append({
+                    "quarter": r["quarter_label"],
+                    "value": r["value"],
+                })
+
+            # Compute share trends using state totals
+            state_total_by_q: dict[str, float] = {}
+            metric_key = {"total_shares": "total_deposits", "total_loans": "total_loans", "member_count": "total_members"}[metric]
+            for st in state_trend:
+                state_total_by_q[st["quarter_label"]] = st.get(metric_key) or 1
+
+            cu_share_trends: dict[str, list] = {}
+            for cn, pts in cu_trends.items():
+                cu_share_trends[cn] = []
+                for pt in pts:
+                    st_total = state_total_by_q.get(pt["quarter"], 1)
+                    cu_share_trends[cn].append({
+                        "quarter": pt["quarter"],
+                        "value": pt["value"],
+                        "share": round((pt["value"] or 0) / st_total, 6) if st_total else 0,
+                    })
+        else:
+            cu_share_trends = {}
+
+        # ── Concentration metrics ──
+        all_vals = conn.execute(f"""
+            SELECT f.{metric} AS val
+            FROM financial_data f
+            JOIN institutions i ON i.id = f.institution_id
+            WHERE f.quarter_label = ? AND i.state = ?
+                AND f.{metric} IS NOT NULL AND f.{metric} > 0
+            ORDER BY f.{metric} DESC
+        """, (latest_q, state)).fetchall()
+
+        total_val = sum(r["val"] for r in all_vals) or 1
+        shares = [(r["val"] / total_val) for r in all_vals]
+        hhi = round(sum(s * s for s in shares) * 10000, 1)  # HHI on 10,000 scale
+        top5_share = round(sum(shares[:5]), 6) if len(shares) >= 5 else round(sum(shares), 6)
+        top10_share = round(sum(shares[:10]), 6) if len(shares) >= 10 else round(sum(shares), 6)
+
+        # ── If a specific CU is requested, include its data even if not in top 15 ──
+        highlight = None
+        if cu_number:
+            existing = next((r for r in rankings if r["cu_number"] == cu_number), None)
+            if existing:
+                highlight = existing
+                highlight["trend"] = cu_share_trends.get(cu_number, [])
+            else:
+                # Fetch this CU's data
+                cu_row = conn.execute(f"""
+                    SELECT
+                        i.cu_number, i.name, i.city,
+                        f.total_shares, f.total_loans, f.member_count,
+                        f.total_assets, f.roa, f.net_worth_ratio
+                    FROM financial_data f
+                    JOIN institutions i ON i.id = f.institution_id
+                    WHERE i.cu_number = ? AND f.quarter_label = ?
+                """, (cu_number, latest_q)).fetchone()
+                if cu_row:
+                    cu_row = dict(cu_row)
+                    cu_val = cu_row.get(metric) or 0
+                    # Find rank
+                    cu_rank = sum(1 for r in all_vals if r["val"] > cu_val) + 1
+                    highlight = {
+                        "rank": cu_rank,
+                        "cu_number": cu_row["cu_number"],
+                        "name": cu_row["name"],
+                        "city": cu_row["city"],
+                        "value": cu_val,
+                        "share": round(cu_val / total_val, 6),
+                        "total_assets": cu_row["total_assets"],
+                        "roa": cu_row["roa"],
+                        "net_worth_ratio": cu_row["net_worth_ratio"],
+                    }
+                    # Fetch trend for this CU
+                    hl_trend = conn.execute(f"""
+                        SELECT f.quarter_label, f.{metric} AS value
+                        FROM financial_data f
+                        JOIN institutions i ON i.id = f.institution_id
+                        WHERE i.cu_number = ?
+                        ORDER BY f.report_date
+                    """, (cu_number,)).fetchall()
+                    highlight["trend"] = [{
+                        "quarter": r["quarter_label"],
+                        "value": r["value"],
+                        "share": round((r["value"] or 0) / state_total_by_q.get(r["quarter_label"], 1), 6),
+                    } for r in hl_trend]
+
+        return {
+            "state": state,
+            "quarter": latest_q,
+            "metric": metric,
+            "metric_label": metric_labels[metric],
+            "state_trend": state_trend,
+            "rankings": rankings,
+            "cu_trends": {cn: pts for cn, pts in cu_share_trends.items()},
+            "concentration": {
+                "hhi": hhi,
+                "top5_share": top5_share,
+                "top10_share": top10_share,
+                "total_cus": len(all_vals),
+            },
+            "highlight": highlight,
+        }

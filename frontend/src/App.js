@@ -3,6 +3,9 @@ import Sidebar from './components/Sidebar';
 import ChatPanel from './components/ChatPanel';
 import OverviewRail from './components/OverviewRail';
 import ComparePanel from './components/ComparePanel';
+import MARadarPanel from './components/MARadarPanel';
+import LandscapePanel from './components/LandscapePanel';
+import MarketSharePanel from './components/MarketSharePanel';
 import ReportModal from './components/ReportModal';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
@@ -583,6 +586,27 @@ export default function App() {
           >
             Compare
           </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'ma-radar' ? 'active' : ''}`}
+            onClick={() => setActiveView('ma-radar')}
+          >
+            M&A
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'landscape' ? 'active' : ''}`}
+            onClick={() => setActiveView('landscape')}
+          >
+            Landscape
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'market-share' ? 'active' : ''}`}
+            onClick={() => setActiveView('market-share')}
+          >
+            Share
+          </button>
         </nav>
         <div className="topbar-right">
           <span className={`topbar-pill ${aiEnabled ? 'on' : ''}`}>
@@ -636,7 +660,7 @@ export default function App() {
                   onToggleOverview={() => setOverviewDrawerOpen((o) => !o)}
                   onQuickCompare={() => setActiveView('compare')}
                 />
-              ) : (
+              ) : activeView === 'compare' ? (
                 <ComparePanel
                   activeCU={activeCU}
                   compareCUs={compareCUs}
@@ -646,7 +670,16 @@ export default function App() {
                     sendMessage(text);
                   }}
                 />
-              )}
+              ) : activeView === 'ma-radar' ? (
+                <MARadarPanel onSelectInstitution={selectInstitution} />
+              ) : activeView === 'landscape' ? (
+                <LandscapePanel />
+              ) : activeView === 'market-share' ? (
+                <MarketSharePanel
+                  activeCU={activeCU}
+                  onSelectInstitution={selectInstitution}
+                />
+              ) : null}
             </div>
 
             {showRail && (
