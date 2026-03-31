@@ -1237,7 +1237,9 @@ def market_share_analysis(
             for cn, pts in cu_trends.items():
                 cu_share_trends[cn] = []
                 for pt in pts:
-                    st_total = state_total_by_q.get(pt["quarter"], 1)
+                    st_total = state_total_by_q.get(pt["quarter"])
+                    if st_total is None:
+                        continue  # skip quarters without state totals
                     cu_share_trends[cn].append({
                         "quarter": pt["quarter"],
                         "value": pt["value"],
@@ -1307,8 +1309,8 @@ def market_share_analysis(
                     highlight["trend"] = [{
                         "quarter": r["quarter_label"],
                         "value": r["value"],
-                        "share": round((r["value"] or 0) / state_total_by_q.get(r["quarter_label"], 1), 6),
-                    } for r in hl_trend]
+                        "share": round((r["value"] or 0) / state_total_by_q[r["quarter_label"]], 6),
+                    } for r in hl_trend if r["quarter_label"] in state_total_by_q]
 
         return {
             "state": state,
@@ -1720,4 +1722,178 @@ def regulatory_alerts():
             "delinquency_alerts": delinq_alerts,
             "critical": critical,
             "alerts": alerts,
+        }
+
+
+# ── /cohort-analysis ──────────────────────────────────────────────────────
+
+@router.get("/cohort-analysis")
+def cohort_analysis(
+    group_by: str = Query("asset_band", description="asset_band|state|charter_type|decade_opened"),
+):
+    """
+    Aggregate CU metrics grouped by asset band, state, charter type, or decade opened.
+    Returns count, avg ROA, avg NWR, avg delinquency, avg efficiency, total assets, total members
+    for each cohort.
+    """
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+
+        if group_by == "asset_band":
+            rows = conn.execute("""
+                SELECT
+                    CASE
+                        WHEN f.total_assets < 50000000   THEN 'Under $50M'
+                        WHEN f.total_assets < 250000000  THEN '$50M-$250M'
+                        WHEN f.total_assets < 1000000000 THEN '$250M-$1B'
+                        WHEN f.total_assets < 10000000000 THEN '$1B-$10B'
+                        ELSE 'Over $10B'
+                    END AS grp,
+                    COUNT(*)                          AS cnt,
+                    AVG(f.roa)                        AS avg_roa,
+                    AVG(f.net_worth_ratio)            AS avg_nwr,
+                    AVG(f.delinquency_ratio)          AS avg_delinquency,
+                    AVG(f.efficiency_ratio)           AS avg_efficiency,
+                    SUM(f.total_assets)               AS total_assets,
+                    SUM(f.member_count)               AS total_members
+                FROM financial_data f
+                JOIN institutions i ON i.id = f.institution_id
+                WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+                GROUP BY grp
+                ORDER BY MIN(f.total_assets)
+            """, (latest_q,)).fetchall()
+
+        elif group_by == "state":
+            rows = conn.execute("""
+                SELECT
+                    i.state AS grp,
+                    COUNT(*)                          AS cnt,
+                    AVG(f.roa)                        AS avg_roa,
+                    AVG(f.net_worth_ratio)            AS avg_nwr,
+                    AVG(f.delinquency_ratio)          AS avg_delinquency,
+                    AVG(f.efficiency_ratio)           AS avg_efficiency,
+                    SUM(f.total_assets)               AS total_assets,
+                    SUM(f.member_count)               AS total_members
+                FROM financial_data f
+                JOIN institutions i ON i.id = f.institution_id
+                WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+                GROUP BY i.state
+                ORDER BY i.state
+            """, (latest_q,)).fetchall()
+
+        elif group_by == "charter_type":
+            rows = conn.execute("""
+                SELECT
+                    CASE
+                        WHEN i.charter_type LIKE '%Federal%' THEN 'Federal'
+                        ELSE 'State-chartered'
+                    END AS grp,
+                    COUNT(*)                          AS cnt,
+                    AVG(f.roa)                        AS avg_roa,
+                    AVG(f.net_worth_ratio)            AS avg_nwr,
+                    AVG(f.delinquency_ratio)          AS avg_delinquency,
+                    AVG(f.efficiency_ratio)           AS avg_efficiency,
+                    SUM(f.total_assets)               AS total_assets,
+                    SUM(f.member_count)               AS total_members
+                FROM financial_data f
+                JOIN institutions i ON i.id = f.institution_id
+                WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+                GROUP BY grp
+                ORDER BY grp
+            """, (latest_q,)).fetchall()
+
+        elif group_by == "decade_opened":
+            rows = conn.execute("""
+                SELECT
+                    (CAST(i.year_opened / 10 AS INT) * 10) || 's' AS grp,
+                    COUNT(*)                          AS cnt,
+                    AVG(f.roa)                        AS avg_roa,
+                    AVG(f.net_worth_ratio)            AS avg_nwr,
+                    AVG(f.delinquency_ratio)          AS avg_delinquency,
+                    AVG(f.efficiency_ratio)           AS avg_efficiency,
+                    SUM(f.total_assets)               AS total_assets,
+                    SUM(f.member_count)               AS total_members
+                FROM financial_data f
+                JOIN institutions i ON i.id = f.institution_id
+                WHERE f.quarter_label = ? AND f.roa IS NOT NULL
+                  AND i.year_opened IS NOT NULL AND i.year_opened > 1900
+                GROUP BY grp
+                ORDER BY grp DESC
+            """, (latest_q,)).fetchall()
+
+        else:
+            raise HTTPException(400, f"Invalid group_by: {group_by}. Use asset_band|state|charter_type|decade_opened")
+
+        cohorts = []
+        for r in rows_as_dicts(rows):
+            cohorts.append({
+                "group":           r["grp"],
+                "count":           r["cnt"],
+                "avg_roa":         round(r["avg_roa"], 6) if r["avg_roa"] is not None else None,
+                "avg_nwr":         round(r["avg_nwr"], 6) if r["avg_nwr"] is not None else None,
+                "avg_delinquency": round(r["avg_delinquency"], 6) if r["avg_delinquency"] is not None else None,
+                "avg_efficiency":  round(r["avg_efficiency"], 4) if r["avg_efficiency"] is not None else None,
+                "total_assets":    r["total_assets"],
+                "total_members":   r["total_members"],
+            })
+
+        return {
+            "quarter": latest_q,
+            "group_by": group_by,
+            "cohorts": cohorts,
+        }
+
+
+# ── /seasonal-patterns ────────────────────────────────────────────────────
+
+@router.get("/seasonal-patterns")
+def seasonal_patterns():
+    """
+    Group all financial_data by quarter number (Q1, Q2, Q3, Q4) across all years.
+    Compute median ROA, NWR, delinquency, loan_to_share for each quarter.
+    """
+    with get_conn() as conn:
+        # Get all distinct quarter labels to count years
+        all_quarters = conn.execute("""
+            SELECT DISTINCT quarter_label FROM financial_data ORDER BY quarter_label
+        """).fetchall()
+        quarter_labels = [r["quarter_label"] for r in all_quarters]
+        years = set()
+        for ql in quarter_labels:
+            try:
+                years.add(int(ql.split("-Q")[0]))
+            except (ValueError, IndexError):
+                pass
+        years_covered = len(years)
+
+        # For each Q1-Q4, gather all rows across all years and compute medians
+        def median(vals):
+            s = sorted(v for v in vals if v is not None)
+            if not s:
+                return None
+            mid = len(s) // 2
+            return round(s[mid], 6) if len(s) % 2 else round((s[mid - 1] + s[mid]) / 2, 6)
+
+        results = []
+        for qn in [1, 2, 3, 4]:
+            pattern = f"%-Q{qn}"
+            rows = conn.execute("""
+                SELECT roa, net_worth_ratio, delinquency_ratio, loan_to_share_ratio
+                FROM financial_data
+                WHERE quarter_label LIKE ? AND roa IS NOT NULL
+            """, (pattern,)).fetchall()
+            data_list = rows_as_dicts(rows)
+
+            results.append({
+                "quarter": f"Q{qn}",
+                "data_points": len(data_list),
+                "median_roa": median([r["roa"] for r in data_list]),
+                "median_nwr": median([r["net_worth_ratio"] for r in data_list]),
+                "median_delinquency": median([r["delinquency_ratio"] for r in data_list]),
+                "median_loan_to_share": median([r["loan_to_share_ratio"] for r in data_list]),
+            })
+
+        return {
+            "years_covered": years_covered,
+            "quarters": results,
         }

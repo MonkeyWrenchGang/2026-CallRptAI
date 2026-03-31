@@ -13,6 +13,9 @@ import WhatIfPanel from './components/WhatIfPanel';
 import AnomalyPanel from './components/AnomalyPanel';
 import RegulatoryAlertsPanel from './components/RegulatoryAlertsPanel';
 import EarningsAtRiskPanel from './components/EarningsAtRiskPanel';
+import ReportBuilderPanel from './components/ReportBuilderPanel';
+import CohortPanel from './components/CohortPanel';
+import SeasonalPanel from './components/SeasonalPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
@@ -426,6 +429,9 @@ export default function App() {
   const [reportCU, setReportCU] = useState(null); // cu_number for report modal
   const [activeView, setActiveView] = useState('ask');
   const [compareCUs, setCompareCUs] = useState([]); // persistent compare list
+  const [darkMode, setDarkMode] = useState(() => {
+    try { return localStorage.getItem('callrptai_darkmode') === 'true'; } catch { return false; }
+  });
 
   const isNarrow = useMediaQuery('(max-width: 900px)');
 
@@ -445,6 +451,11 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [isNarrow, overviewDrawerOpen]);
+
+  // Persist dark mode preference
+  useEffect(() => {
+    try { localStorage.setItem('callrptai_darkmode', darkMode); } catch {}
+  }, [darkMode]);
 
   // Check health / AI status
   useEffect(() => {
@@ -563,7 +574,7 @@ export default function App() {
   const railVisible = !isNarrow || overviewDrawerOpen;
 
   return (
-    <div className="app">
+    <div className={`app${darkMode ? ' dark' : ''}`}>
       <header className="app-topbar">
         <div className="topbar-brand">
           <span className="topbar-mark" aria-hidden="true">CR</span>
@@ -657,8 +668,38 @@ export default function App() {
           >
             EaR
           </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'report-builder' ? 'active' : ''}`}
+            onClick={() => setActiveView('report-builder')}
+          >
+            Report
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'cohort' ? 'active' : ''}`}
+            onClick={() => setActiveView('cohort')}
+          >
+            Cohort
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'seasonal' ? 'active' : ''}`}
+            onClick={() => setActiveView('seasonal')}
+          >
+            Seasonal
+          </button>
         </nav>
         <div className="topbar-right">
+          <button
+            type="button"
+            className="dark-mode-toggle"
+            onClick={() => setDarkMode((d) => !d)}
+            aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+            title={darkMode ? 'Light mode' : 'Dark mode'}
+          >
+            {darkMode ? '\u2600' : '\u263E'}
+          </button>
           <span className={`topbar-pill ${aiEnabled ? 'on' : ''}`}>
             {aiEnabled ? 'Claude AI active' : 'Demo mode'}
           </span>
@@ -747,6 +788,15 @@ export default function App() {
                 <RegulatoryAlertsPanel onSelectInstitution={selectInstitution} />
               ) : activeView === 'ear' ? (
                 <EarningsAtRiskPanel activeCU={activeCU} />
+              ) : activeView === 'report-builder' ? (
+                <ReportBuilderPanel
+                  activeCU={activeCU}
+                  selectedInstitution={selectedInstitution}
+                />
+              ) : activeView === 'cohort' ? (
+                <CohortPanel />
+              ) : activeView === 'seasonal' ? (
+                <SeasonalPanel />
               ) : null}
             </div>
 

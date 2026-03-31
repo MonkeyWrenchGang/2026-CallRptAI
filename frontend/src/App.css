@@ -3953,3 +3953,285 @@ body {
   font-size: 10px;
   color: var(--text-secondary);
 }
+
+/* ══════════════════════════════════════════════════════════════════════
+   DARK MODE
+   ══════════════════════════════════════════════════════════════════════ */
+
+.app.dark {
+  --bg-page: #1a1a1e;
+  --bg-surface: #2a2a2e;
+  --bg-muted: #333338;
+  --border: rgba(255,255,255,0.1);
+  --border-strong: rgba(255,255,255,0.18);
+  --text: #e5e5e3;
+  --text-secondary: #a0a09a;
+  --text-muted: #6b6a64;
+  --teal: #2dd4a0;
+  --teal-dark: #a7f3d0;
+  --teal-soft: rgba(45,212,160,0.1);
+  --brand-fill: #2dd4a0;
+}
+
+.dark-mode-toggle {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+  margin-right: 8px;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.dark-mode-toggle:hover {
+  background: var(--bg-muted);
+  color: var(--text);
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   REPORT BUILDER
+   ══════════════════════════════════════════════════════════════════════ */
+
+.report-builder-panel .rb-controls {
+  margin-bottom: 16px;
+}
+
+.rb-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.rb-textarea {
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  font-family: inherit;
+  font-size: 13px;
+  resize: vertical;
+  background: var(--bg-surface);
+  color: var(--text);
+  line-height: 1.5;
+}
+
+.rb-textarea:focus {
+  outline: none;
+  border-color: var(--teal);
+  box-shadow: 0 0 0 2px var(--teal-soft);
+}
+
+.rb-options-row {
+  display: flex;
+  gap: 12px;
+  align-items: flex-end;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.rb-option {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.rb-option-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-weight: 500;
+}
+
+.rb-input {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 12px;
+  width: 120px;
+  background: var(--bg-surface);
+  color: var(--text);
+  font-family: inherit;
+}
+
+.rb-select {
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius);
+  padding: 6px 10px;
+  font-size: 12px;
+  background: var(--bg-surface);
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.rb-generate-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: var(--radius);
+  background: var(--teal);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.rb-generate-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+.rb-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rb-result {
+  margin-top: 16px;
+}
+
+.rb-result-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.rb-markdown {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text);
+}
+
+.rb-markdown h1 { font-size: 18px; margin: 20px 0 8px; }
+.rb-markdown h2 { font-size: 16px; margin: 18px 0 6px; border-bottom: 1px solid var(--border); padding-bottom: 4px; }
+.rb-markdown h3 { font-size: 14px; margin: 14px 0 4px; }
+.rb-markdown p { margin: 8px 0; }
+.rb-markdown ul, .rb-markdown ol { margin: 8px 0 8px 20px; }
+.rb-markdown li { margin: 3px 0; }
+.rb-markdown table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+.rb-markdown th { text-align: left; background: var(--bg-muted); padding: 5px 8px; border-bottom: 1px solid var(--border-strong); }
+.rb-markdown td { padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.rb-markdown strong { font-weight: 600; }
+.rb-markdown code { background: var(--bg-muted); padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+
+/* ══════════════════════════════════════════════════════════════════════
+   COHORT PANEL
+   ══════════════════════════════════════════════════════════════════════ */
+
+.cohort-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.cohort-chart-section {
+  margin-bottom: 20px;
+}
+
+.cohort-chart-section h3 {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.sortable-th {
+  cursor: pointer;
+  user-select: none;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--bg-muted);
+  white-space: nowrap;
+}
+
+.sortable-th:hover {
+  color: var(--text);
+}
+
+.cohort-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+/* ══════════════════════════════════════════════════════════════════════
+   SEASONAL PANEL
+   ══════════════════════════════════════════════════════════════════════ */
+
+.seasonal-chart-section {
+  margin-bottom: 20px;
+}
+
+.seasonal-chart-section h3 {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.seasonal-table td {
+  padding: 5px 10px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+}
+
+.seasonal-highlights {
+  margin-top: 20px;
+}
+
+.seasonal-highlights h3 {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 10px;
+}
+
+.seasonal-highlights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.seasonal-highlight-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 12px;
+}
+
+.seasonal-highlight-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.seasonal-highlight-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.seasonal-best {
+  color: #059669;
+  font-weight: 500;
+}
+
+.seasonal-worst {
+  color: #dc2626;
+  font-weight: 500;
+}
