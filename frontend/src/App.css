@@ -3297,6 +3297,177 @@ body {
 }
 
 
+/* ── Inline CU Pulse (expandable row) ───────────────────────────── */
+
+.ms-row-clickable { cursor: pointer; }
+.ms-row-clickable:hover { background: var(--bg-muted); }
+.ms-row-expanded { background: var(--teal-soft) !important; border-bottom: none; }
+.ms-row-expanded td { border-bottom: none; }
+
+.ms-expand-icon {
+  display: inline-block;
+  width: 14px;
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-right: 4px;
+  vertical-align: middle;
+}
+
+.ms-pulse-row td {
+  padding: 0 !important;
+  border-bottom: 2px solid var(--teal);
+}
+
+.ms-pulse-expand {
+  background: var(--bg-surface);
+  border-left: 3px solid var(--teal);
+  padding: 16px 20px;
+  margin: 0;
+}
+
+.ms-pulse-loading {
+  padding: 20px;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.ms-pulse-top {
+  display: flex;
+  gap: 24px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.ms-pulse-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 100px;
+  flex-shrink: 0;
+}
+
+.ms-pulse-gauge-score {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: -8px;
+}
+
+.ms-pulse-gauge-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.ms-pulse-kpis {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  flex: 1;
+}
+
+.ms-pulse-kpi {
+  min-width: 90px;
+  flex: 1;
+}
+
+.ms-pulse-kpi-label {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  color: var(--text-muted);
+  margin-bottom: 2px;
+}
+
+.ms-pulse-kpi-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.ms-pulse-kpi-val {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.ms-qoq { font-size: 10px; }
+.ms-qoq-up { color: #059669; }
+.ms-qoq-down { color: #dc2626; }
+.ms-qoq-flat { color: var(--text-muted); font-size: 10px; }
+
+/* Peer percentile bars */
+.ms-pulse-pctiles {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--bg-muted);
+  border-radius: var(--radius);
+}
+
+.ms-pulse-pctiles-header {
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+
+.ms-pulse-peer-count {
+  font-weight: 400;
+  color: var(--text-muted);
+  font-size: 10px;
+}
+
+.ms-pulse-pctile {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+
+.ms-pulse-pctile-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  width: 72px;
+  flex-shrink: 0;
+}
+
+.ms-pulse-pctile-track {
+  flex: 1;
+  height: 8px;
+  background: #e5e5e5;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.ms-pulse-pctile-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.4s ease;
+}
+
+.ms-pulse-pctile-val {
+  font-size: 10px;
+  font-weight: 600;
+  width: 40px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+.ms-pulse-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.ms-pulse-meta strong {
+  color: var(--text);
+}
+
 /* ── FRED / Macro Overlay ─────────────────────────────────────────── */
 
 .fred-categories {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { fmtAssets, fmtPct, fmtMembers } from '../utils/format';
+import { fmtAssets, fmtPct, fmtPctChange, fmtMembers } from '../utils/format';
 
 const METRICS = [
   { key: 'total_shares', label: 'Deposits' },
@@ -60,6 +60,152 @@ function fmtMetricValue(val, metric) {
   return fmtAssets(val);
 }
 
+/* ── Mini health gauge for inline pulse ─────────────────────────────── */
+function MiniHealthGauge({ score }) {
+  const angle = -90 + (score / 100) * 180;
+  const color = score >= 75 ? '#059669' : score >= 50 ? '#ef9f27' : '#dc2626';
+  const label = score >= 75 ? 'Healthy' : score >= 50 ? 'Moderate' : 'Stressed';
+  return (
+    <div className="ms-pulse-gauge">
+      <svg width="100" height="58" viewBox="0 0 100 58">
+        <path d="M 6 52 A 44 44 0 0 1 94 52" fill="none" stroke="#e5e5e5" strokeWidth="8" strokeLinecap="round" />
+        <path d="M 6 52 A 44 44 0 0 1 94 52" fill="none" stroke={color} strokeWidth="8" strokeLinecap="round"
+          strokeDasharray={`${(score / 100) * 138} 138`} />
+        <line x1="50" y1="52" x2={50 + 32 * Math.cos((angle * Math.PI) / 180)} y2={52 + 32 * Math.sin((angle * Math.PI) / 180)}
+          stroke={color} strokeWidth="2" strokeLinecap="round" />
+        <circle cx="50" cy="52" r="3" fill={color} />
+      </svg>
+      <div className="ms-pulse-gauge-score mono">{Math.round(score)}</div>
+      <div className="ms-pulse-gauge-label" style={{ color }}>{label}</div>
+    </div>
+  );
+}
+
+/* ── Percentile bar for inline pulse ────────────────────────────────── */
+function PercentileBar({ value, label, invert = false }) {
+  if (value == null) return null;
+  const pct = Math.max(0, Math.min(100, value));
+  const color = invert
+    ? (pct >= 60 ? '#059669' : pct >= 30 ? '#ef9f27' : '#dc2626')
+    : (pct >= 60 ? '#059669' : pct >= 30 ? '#ef9f27' : '#dc2626');
+  return (
+    <div className="ms-pulse-pctile">
+      <div className="ms-pulse-pctile-label">{label}</div>
+      <div className="ms-pulse-pctile-track">
+        <div className="ms-pulse-pctile-fill" style={{ width: `${pct}%`, background: color }} />
+      </div>
+      <div className="ms-pulse-pctile-val mono">{Math.round(pct)}%ile</div>
+    </div>
+  );
+}
+
+/* ── Sparkline for pulse KPI ────────────────────────────────────────── */
+function PulseKpiSparkline({ data, field, width = 70, height = 20, color = 'var(--teal)' }) {
+  if (!data || data.length < 2) return null;
+  const vals = data.map((d) => Number(d[field] ?? 0));
+  const min = Math.min(...vals);
+  const max = Math.max(...vals);
+  const range = max - min || 0.0001;
+  const pts = vals.map((v, i) => {
+    const x = (i / (vals.length - 1)) * width;
+    const y = height - ((v - min) / range) * (height - 4) - 2;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  return (
+    <svg width={width} height={height} style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+/* ── QoQ arrow ──────────────────────────────────────────────────────── */
+function QoQArrow({ current, previous, invert = false }) {
+  if (current == null || previous == null) return null;
+  const delta = current - previous;
+  if (Math.abs(delta) < 0.000001) return <span className="ms-qoq-flat">—</span>;
+  const isPositive = invert ? delta < 0 : delta > 0;
+  return (
+    <span className={`ms-qoq ${isPositive ? 'ms-qoq-up' : 'ms-qoq-down'}`}>
+      {isPositive ? '▲' : '▼'} {fmtPctChange(delta)}
+    </span>
+  );
+}
+
+/* ── Inline CU Pulse (expandable row) ───────────────────────────────── */
+function CUPulse({ cuNumber }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    fetch(`/api/ncua/institutions/${cuNumber}`)
+      .then((r) => { if (!r.ok) throw new Error(); return r.json(); })
+      .then((d) => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [cuNumber]);
+
+  if (loading) return <div className="ms-pulse-loading">Loading pulse…</div>;
+  if (!data) return <div className="ms-pulse-loading">Could not load data.</div>;
+
+  const { latest, trend, percentiles } = data;
+
+  // Compute health score (same formula as main Pulse)
+  const roa = latest.roa ?? 0;
+  const nwr = latest.net_worth_ratio ?? 0;
+  const delinq = latest.delinquency_ratio ?? 0;
+  let healthScore = 50;
+  healthScore += (roa - 0.005) * 3000;
+  healthScore += (nwr - 0.08) * 500;
+  healthScore -= (delinq - 0.01) * 2000;
+  healthScore = Math.max(0, Math.min(100, healthScore));
+
+  // Previous quarter for QoQ
+  const prev = trend && trend.length >= 2 ? trend[trend.length - 2] : null;
+
+  const kpis = [
+    { label: 'ROA', value: fmtPct(latest.roa, 3), field: 'roa', color: '#1D9E75', prev: prev?.roa, curr: latest.roa },
+    { label: 'Net Worth', value: fmtPct(latest.net_worth_ratio, 2), field: 'net_worth_ratio', color: '#2563eb', prev: prev?.net_worth_ratio, curr: latest.net_worth_ratio },
+    { label: 'Delinquency', value: fmtPct(latest.delinquency_ratio, 3), field: 'delinquency_ratio', color: '#dc2626', prev: prev?.delinquency_ratio, curr: latest.delinquency_ratio, invert: true },
+    { label: 'Loan/Share', value: fmtPct(latest.loan_to_share_ratio, 1), field: 'loan_to_share_ratio', color: '#8b5cf6', prev: prev?.loan_to_share_ratio, curr: latest.loan_to_share_ratio },
+    { label: 'Efficiency', value: fmtPct(latest.efficiency_ratio, 1), field: 'efficiency_ratio', color: '#ef9f27', prev: prev?.efficiency_ratio, curr: latest.efficiency_ratio, invert: true },
+  ];
+
+  return (
+    <div className="ms-pulse-expand">
+      <div className="ms-pulse-top">
+        <MiniHealthGauge score={healthScore} />
+        <div className="ms-pulse-kpis">
+          {kpis.map((k) => (
+            <div key={k.field} className="ms-pulse-kpi">
+              <div className="ms-pulse-kpi-label">{k.label}</div>
+              <div className="ms-pulse-kpi-row">
+                <span className="ms-pulse-kpi-val mono">{k.value}</span>
+                <QoQArrow current={k.curr} previous={k.prev} invert={k.invert} />
+              </div>
+              <PulseKpiSparkline data={trend} field={k.field} color={k.color} />
+            </div>
+          ))}
+        </div>
+      </div>
+      {percentiles && (
+        <div className="ms-pulse-pctiles">
+          <div className="ms-pulse-pctiles-header">Peer Percentiles <span className="ms-pulse-peer-count">({percentiles.peer_count} peers)</span></div>
+          <PercentileBar value={percentiles.roa} label="ROA" />
+          <PercentileBar value={percentiles.net_worth_ratio} label="Net Worth" />
+          <PercentileBar value={percentiles.delinquency_ratio} label="Delinquency" />
+          <PercentileBar value={percentiles.loan_to_share} label="Loan/Share" />
+          <PercentileBar value={percentiles.efficiency_ratio} label="Efficiency" />
+        </div>
+      )}
+      <div className="ms-pulse-meta">
+        <span>Assets: <strong className="mono">{fmtAssets(latest.total_assets)}</strong></span>
+        <span>Members: <strong className="mono">{fmtMembers(latest.member_count)}</strong></span>
+        <span>Quarter: <strong className="mono">{latest.quarter_label}</strong></span>
+      </div>
+    </div>
+  );
+}
+
 export default function MarketSharePanel({ activeCU, onSelectInstitution }) {
   const [states, setStates] = useState(null);
   const [selectedState, setSelectedState] = useState('');
@@ -67,6 +213,7 @@ export default function MarketSharePanel({ activeCU, onSelectInstitution }) {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
   const [statesLoading, setStatesLoading] = useState(true);
+  const [expandedCU, setExpandedCU] = useState(null);
 
   // Fetch states list on mount
   useEffect(() => {
@@ -248,36 +395,47 @@ export default function MarketSharePanel({ activeCU, onSelectInstitution }) {
                 <tbody>
                   {rankings.map((r) => {
                     const isHighlighted = highlight && r.cu_number === highlight.cu_number;
+                    const isExpanded = expandedCU === r.cu_number;
                     return (
-                      <tr key={r.cu_number} className={isHighlighted ? 'ms-row-highlight' : ''}>
-                        <td className="mono">{r.rank}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="pulse-link"
-                            onClick={() => onSelectInstitution?.({
-                              cu_number: r.cu_number,
-                              name: r.name,
-                            })}
-                          >
-                            {r.name}
-                          </button>
-                        </td>
-                        <td className="ms-city">{r.city}</td>
-                        <td className="mono">{fmtMetricValue(r.value, metric)}</td>
-                        <td className="mono" style={{ fontWeight: 600 }}>{fmtPct(r.share, 2)}</td>
-                        <td>
-                          <ShareBar share={r.share} maxShare={maxShare} />
-                        </td>
-                        <td>
-                          <TrendSparkline
-                            data={cuTrends[r.cu_number]}
-                            width={80}
-                            height={24}
-                          />
-                        </td>
-                        <td className="mono">{fmtAssets(r.total_assets)}</td>
-                      </tr>
+                      <React.Fragment key={r.cu_number}>
+                        <tr
+                          className={`ms-row-clickable ${isHighlighted ? 'ms-row-highlight' : ''} ${isExpanded ? 'ms-row-expanded' : ''}`}
+                          onClick={() => setExpandedCU(isExpanded ? null : r.cu_number)}
+                        >
+                          <td className="mono">{r.rank}</td>
+                          <td>
+                            <span className="ms-expand-icon">{isExpanded ? '▾' : '▸'}</span>
+                            <button
+                              type="button"
+                              className="pulse-link"
+                              onClick={(e) => { e.stopPropagation(); onSelectInstitution?.({ cu_number: r.cu_number, name: r.name }); }}
+                            >
+                              {r.name}
+                            </button>
+                          </td>
+                          <td className="ms-city">{r.city}</td>
+                          <td className="mono">{fmtMetricValue(r.value, metric)}</td>
+                          <td className="mono" style={{ fontWeight: 600 }}>{fmtPct(r.share, 2)}</td>
+                          <td>
+                            <ShareBar share={r.share} maxShare={maxShare} />
+                          </td>
+                          <td>
+                            <TrendSparkline
+                              data={cuTrends[r.cu_number]}
+                              width={80}
+                              height={24}
+                            />
+                          </td>
+                          <td className="mono">{fmtAssets(r.total_assets)}</td>
+                        </tr>
+                        {isExpanded && (
+                          <tr className="ms-pulse-row">
+                            <td colSpan={8}>
+                              <CUPulse cuNumber={r.cu_number} />
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
                     );
                   })}
                 </tbody>
