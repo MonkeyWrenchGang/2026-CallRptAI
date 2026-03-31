@@ -10,6 +10,9 @@ import FredPanel from './components/FredPanel';
 import ReportModal from './components/ReportModal';
 import WatchlistPanel from './components/WatchlistPanel';
 import WhatIfPanel from './components/WhatIfPanel';
+import AnomalyPanel from './components/AnomalyPanel';
+import RegulatoryAlertsPanel from './components/RegulatoryAlertsPanel';
+import EarningsAtRiskPanel from './components/EarningsAtRiskPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
@@ -633,6 +636,27 @@ export default function App() {
           >
             What-If
           </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'anomalies' ? 'active' : ''}`}
+            onClick={() => setActiveView('anomalies')}
+          >
+            Anomalies
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'alerts' ? 'active' : ''}`}
+            onClick={() => setActiveView('alerts')}
+          >
+            Alerts
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'ear' ? 'active' : ''}`}
+            onClick={() => setActiveView('ear')}
+          >
+            EaR
+          </button>
         </nav>
         <div className="topbar-right">
           <span className={`topbar-pill ${aiEnabled ? 'on' : ''}`}>
@@ -717,6 +741,12 @@ export default function App() {
                     sendMessage(text);
                   }}
                 />
+              ) : activeView === 'anomalies' ? (
+                <AnomalyPanel onSelectInstitution={selectInstitution} />
+              ) : activeView === 'alerts' ? (
+                <RegulatoryAlertsPanel onSelectInstitution={selectInstitution} />
+              ) : activeView === 'ear' ? (
+                <EarningsAtRiskPanel activeCU={activeCU} />
               ) : null}
             </div>
 

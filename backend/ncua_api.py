@@ -11,8 +11,11 @@ Routes:
 
 from __future__ import annotations
 
+import json
 import os
 import sqlite3
+import time
+import urllib.request
 from contextlib import contextmanager
 from typing import Optional
 
@@ -248,8 +251,8 @@ def compare(
     ids = [x.strip() for x in cu_numbers.split(",") if x.strip()]
     if not ids:
         raise HTTPException(400, "Provide at least one cu_number")
-    if len(ids) > 6:
-        raise HTTPException(400, "Max 6 CUs for compare")
+    if len(ids) > 8:
+        raise HTTPException(400, "Max 8 CUs for compare")
 
     with get_conn() as conn:
         latest_q = _latest_quarter(conn)
@@ -1322,4 +1325,399 @@ def market_share_analysis(
                 "total_cus": len(all_vals),
             },
             "highlight": highlight,
+        }
+
+
+# ── /fred — FRED macro overlay ────────────────────────────────────────────
+
+FRED_API_KEY = os.environ.get("FRED_API_KEY", "")
+
+# Series relevant to credit union analysis
+FRED_SERIES = {
+    "FEDFUNDS":    {"label": "Fed Funds Rate",      "unit": "%",  "category": "rates"},
+    "DGS10":       {"label": "10-Yr Treasury",       "unit": "%",  "category": "rates"},
+    "MORTGAGE30US": {"label": "30-Yr Mortgage",      "unit": "%",  "category": "rates"},
+    "UNRATE":      {"label": "Unemployment",          "unit": "%",  "category": "labor"},
+    "CPIAUCSL":    {"label": "CPI (All Urban)",       "unit": "index", "category": "inflation"},
+    "CPILFESL":    {"label": "Core CPI (ex Food/Energy)", "unit": "index", "category": "inflation"},
+    "TOTALSL":     {"label": "Consumer Credit",       "unit": "$B", "category": "credit"},
+    "DRCCLACBS":   {"label": "CC Delinquency Rate",   "unit": "%",  "category": "credit"},
+    "GDP":         {"label": "Real GDP",               "unit": "$B", "category": "growth"},
+    "UMCSENT":     {"label": "Consumer Sentiment",     "unit": "index", "category": "sentiment"},
+}
+
+# Simple in-memory cache: {series_id: {"data": [...], "fetched_at": timestamp}}
+_fred_cache: dict[str, dict] = {}
+_FRED_CACHE_TTL = 3600 * 6  # 6 hours
+
+
+def _fetch_fred_series(series_id: str, limit: int = 36) -> list[dict]:
+    """Fetch observations from FRED API with caching."""
+    now = time.time()
+    cached = _fred_cache.get(series_id)
+    if cached and (now - cached["fetched_at"]) < _FRED_CACHE_TTL:
+        return cached["data"][:limit]
+
+    if not FRED_API_KEY:
+        return []
+
+    url = (
+        f"https://api.stlouisfed.org/fred/series/observations"
+        f"?series_id={series_id}&api_key={FRED_API_KEY}"
+        f"&file_type=json&sort_order=desc&limit={limit}"
+    )
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "CallRptAI/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode())
+        observations = body.get("observations", [])
+        parsed = []
+        for obs in observations:
+            val = obs.get("value", ".")
+            if val == ".":
+                continue
+            parsed.append({
+                "date": obs["date"],
+                "value": round(float(val), 4),
+            })
+        _fred_cache[series_id] = {"data": parsed, "fetched_at": now}
+        return parsed[:limit]
+    except Exception:
+        return cached["data"][:limit] if cached else []
+
+
+@router.get("/fred")
+def fred_overview():
+    """
+    Return latest values + recent trend for key macro indicators.
+    Groups by category (rates, labor, inflation, credit, growth, sentiment).
+    """
+    if not FRED_API_KEY:
+        return {
+            "error": "FRED_API_KEY not configured",
+            "configured": False,
+            "series": {},
+            "categories": {},
+        }
+
+    series_data = {}
+    categories: dict[str, list] = {}
+
+    for sid, meta in FRED_SERIES.items():
+        obs = _fetch_fred_series(sid, limit=36)
+        current = obs[0] if obs else None
+        prev = obs[1] if len(obs) > 1 else None
+
+        change = None
+        if current and prev:
+            change = round(current["value"] - prev["value"], 4)
+
+        entry = {
+            "series_id": sid,
+            "label": meta["label"],
+            "unit": meta["unit"],
+            "category": meta["category"],
+            "current": current,
+            "change": change,
+            "trend": list(reversed(obs[:12])),  # last 12 observations, chronological
+        }
+        series_data[sid] = entry
+
+        cat = meta["category"]
+        if cat not in categories:
+            categories[cat] = []
+        categories[cat].append(entry)
+
+    return {
+        "configured": True,
+        "series": series_data,
+        "categories": categories,
+    }
+
+
+@router.get("/fred/{series_id}")
+def fred_series_detail(series_id: str, limit: int = Query(36, ge=1, le=120)):
+    """Return detailed observations for a single FRED series."""
+    sid = series_id.upper()
+    if sid not in FRED_SERIES:
+        raise HTTPException(404, f"Unknown series: {series_id}")
+
+    if not FRED_API_KEY:
+        return {"error": "FRED_API_KEY not configured", "configured": False}
+
+    obs = _fetch_fred_series(sid, limit=limit)
+    meta = FRED_SERIES[sid]
+
+    return {
+        "configured": True,
+        "series_id": sid,
+        "label": meta["label"],
+        "unit": meta["unit"],
+        "category": meta["category"],
+        "observations": list(reversed(obs)),  # chronological order
+    }
+
+
+# ── /anomalies ────────────────────────────────────────────────────────────
+
+@router.get("/anomalies")
+def anomalies(limit: int = Query(50, ge=1, le=500)):
+    """Flag CUs with metrics that moved >2 std dev from their own 8-quarter trend."""
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+
+        # For each CU, compute mean/stddev over their last 8 quarters,
+        # then flag where the latest value deviates > 2 stddev.
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT
+                    f.institution_id,
+                    f.quarter_label,
+                    f.roa,
+                    f.net_worth_ratio,
+                    f.delinquency_ratio,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY f.institution_id
+                        ORDER BY f.report_date DESC
+                    ) AS rn
+                FROM financial_data f
+                WHERE f.roa IS NOT NULL
+            ),
+            stats AS (
+                SELECT
+                    institution_id,
+                    AVG(roa) AS mean_roa,
+                    AVG(
+                        (roa - (SELECT AVG(r2.roa) FROM ranked r2
+                                WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                        * (roa - (SELECT AVG(r2.roa) FROM ranked r2
+                                  WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                    ) AS var_roa,
+                    AVG(net_worth_ratio) AS mean_nwr,
+                    AVG(
+                        (net_worth_ratio - (SELECT AVG(r2.net_worth_ratio) FROM ranked r2
+                                            WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                        * (net_worth_ratio - (SELECT AVG(r2.net_worth_ratio) FROM ranked r2
+                                              WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                    ) AS var_nwr,
+                    AVG(delinquency_ratio) AS mean_delinq,
+                    AVG(
+                        (delinquency_ratio - (SELECT AVG(r2.delinquency_ratio) FROM ranked r2
+                                              WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                        * (delinquency_ratio - (SELECT AVG(r2.delinquency_ratio) FROM ranked r2
+                                                WHERE r2.institution_id = ranked.institution_id AND r2.rn <= 8))
+                    ) AS var_delinq
+                FROM ranked
+                WHERE rn <= 8
+                GROUP BY institution_id
+                HAVING COUNT(*) >= 4
+            ),
+            latest AS (
+                SELECT institution_id, roa, net_worth_ratio, delinquency_ratio
+                FROM ranked
+                WHERE rn = 1
+            )
+            SELECT
+                i.cu_number,
+                i.name,
+                i.state,
+                l.roa AS latest_roa,
+                s.mean_roa,
+                s.var_roa,
+                l.net_worth_ratio AS latest_nwr,
+                s.mean_nwr,
+                s.var_nwr,
+                l.delinquency_ratio AS latest_delinq,
+                s.mean_delinq,
+                s.var_delinq
+            FROM stats s
+            JOIN latest l ON l.institution_id = s.institution_id
+            JOIN institutions i ON i.id = s.institution_id
+        """).fetchall()
+
+        import math as _math
+
+        results = []
+        for row in rows:
+            r = dict(row)
+            checks = [
+                ("ROA", r["latest_roa"], r["mean_roa"], r["var_roa"]),
+                ("Net Worth Ratio", r["latest_nwr"], r["mean_nwr"], r["var_nwr"]),
+                ("Delinquency", r["latest_delinq"], r["mean_delinq"], r["var_delinq"]),
+            ]
+            for metric_name, current, mean, variance in checks:
+                if current is None or mean is None or variance is None:
+                    continue
+                stddev = _math.sqrt(variance) if variance > 0 else 0
+                if stddev < 1e-8:
+                    continue
+                z_score = (current - mean) / stddev
+                if abs(z_score) > 2.0:
+                    direction = "spike" if z_score > 0 else "drop"
+                    results.append({
+                        "cu_number": r["cu_number"],
+                        "name": r["name"],
+                        "state": r["state"],
+                        "metric_name": metric_name,
+                        "current_value": round(current, 6),
+                        "mean": round(mean, 6),
+                        "stddev": round(stddev, 6),
+                        "z_score": round(z_score, 2),
+                        "direction": direction,
+                    })
+
+        # Sort by absolute z-score descending
+        results.sort(key=lambda x: abs(x["z_score"]), reverse=True)
+        results = results[:limit]
+
+        # Summary counts
+        roa_count = sum(1 for r in results if r["metric_name"] == "ROA")
+        nwr_count = sum(1 for r in results if r["metric_name"] == "Net Worth Ratio")
+        delinq_count = sum(1 for r in results if r["metric_name"] == "Delinquency")
+
+        return {
+            "quarter": latest_q,
+            "total": len(results),
+            "roa_anomalies": roa_count,
+            "nwr_anomalies": nwr_count,
+            "delinquency_anomalies": delinq_count,
+            "anomalies": results,
+        }
+
+
+# ── /regulatory-alerts ────────────────────────────────────────────────────
+
+@router.get("/regulatory-alerts")
+def regulatory_alerts():
+    """Flag CUs approaching NCUA thresholds with projected crossing quarter."""
+    with get_conn() as conn:
+        latest_q = _latest_quarter(conn)
+
+        # Get latest 4 quarters of NWR and delinquency for each CU
+        rows = conn.execute("""
+            WITH ranked AS (
+                SELECT
+                    f.institution_id,
+                    f.quarter_label,
+                    f.report_date,
+                    f.net_worth_ratio,
+                    f.delinquency_ratio,
+                    ROW_NUMBER() OVER (
+                        PARTITION BY f.institution_id
+                        ORDER BY f.report_date DESC
+                    ) AS rn
+                FROM financial_data f
+                WHERE f.net_worth_ratio IS NOT NULL
+            )
+            SELECT
+                i.cu_number,
+                i.name,
+                i.state,
+                r1.net_worth_ratio AS nwr_q1,
+                r2.net_worth_ratio AS nwr_q2,
+                r3.net_worth_ratio AS nwr_q3,
+                r4.net_worth_ratio AS nwr_q4,
+                r1.delinquency_ratio AS delinq_q1,
+                r2.delinquency_ratio AS delinq_q2,
+                r3.delinquency_ratio AS delinq_q3,
+                r4.delinquency_ratio AS delinq_q4
+            FROM ranked r1
+            JOIN ranked r2 ON r2.institution_id = r1.institution_id AND r2.rn = 2
+            JOIN ranked r3 ON r3.institution_id = r1.institution_id AND r3.rn = 3
+            JOIN ranked r4 ON r4.institution_id = r1.institution_id AND r4.rn = 4
+            JOIN institutions i ON i.id = r1.institution_id
+            WHERE r1.rn = 1
+        """).fetchall()
+
+        def _linear_slope(vals):
+            """Compute slope of linear fit over equally-spaced points (quarters)."""
+            n = len(vals)
+            if n < 2:
+                return 0
+            x_mean = (n - 1) / 2.0
+            y_mean = sum(vals) / n
+            num = sum((i - x_mean) * (v - y_mean) for i, v in enumerate(vals))
+            den = sum((i - x_mean) ** 2 for i in range(n))
+            return num / den if den != 0 else 0
+
+        def _project_crossing(current, slope, threshold):
+            """How many quarters until current + slope*q crosses threshold."""
+            if slope == 0:
+                return None
+            quarters = (threshold - current) / slope
+            if quarters <= 0:
+                return None
+            return quarters
+
+        def _future_quarter(label, q_ahead):
+            """Compute the quarter label q_ahead quarters in the future."""
+            year, q = label.split("-Q")
+            year, q = int(year), int(q)
+            total_q = (year * 4 + q) + int(q_ahead)
+            new_year = (total_q - 1) // 4
+            new_q = ((total_q - 1) % 4) + 1
+            return f"{new_year}-Q{new_q}"
+
+        alerts = []
+        for row in rows:
+            r = dict(row)
+
+            # NWR alert: declining and currently between 7-10%
+            nwr_vals = [r["nwr_q4"], r["nwr_q3"], r["nwr_q2"], r["nwr_q1"]]
+            if all(v is not None for v in nwr_vals):
+                nwr_current = r["nwr_q1"]
+                nwr_slope = _linear_slope(nwr_vals)
+                if nwr_slope < 0 and 0.07 <= nwr_current <= 0.10:
+                    quarters_until = _project_crossing(nwr_current, nwr_slope, 0.07)
+                    if quarters_until is not None and quarters_until <= 12:
+                        alerts.append({
+                            "cu_number": r["cu_number"],
+                            "name": r["name"],
+                            "state": r["state"],
+                            "alert_type": "nwr_approaching",
+                            "current_value": round(nwr_current, 6),
+                            "trend_slope": round(nwr_slope, 6),
+                            "quarters_until_crossing": round(quarters_until, 1),
+                            "projected_crossing_quarter": _future_quarter(
+                                latest_q, quarters_until
+                            ),
+                        })
+
+            # Delinquency alert: trending above 2%
+            delinq_vals = [r["delinq_q4"], r["delinq_q3"], r["delinq_q2"], r["delinq_q1"]]
+            if all(v is not None for v in delinq_vals):
+                delinq_current = r["delinq_q1"]
+                delinq_slope = _linear_slope(delinq_vals)
+                if delinq_slope > 0 and 0.01 <= delinq_current <= 0.02:
+                    quarters_until = _project_crossing(
+                        delinq_current, delinq_slope, 0.02
+                    )
+                    if quarters_until is not None and quarters_until <= 12:
+                        alerts.append({
+                            "cu_number": r["cu_number"],
+                            "name": r["name"],
+                            "state": r["state"],
+                            "alert_type": "delinquency_rising",
+                            "current_value": round(delinq_current, 6),
+                            "trend_slope": round(delinq_slope, 6),
+                            "quarters_until_crossing": round(quarters_until, 1),
+                            "projected_crossing_quarter": _future_quarter(
+                                latest_q, quarters_until
+                            ),
+                        })
+
+        # Sort by quarters_until_crossing ascending (most urgent first)
+        alerts.sort(key=lambda x: x["quarters_until_crossing"])
+
+        nwr_alerts = sum(1 for a in alerts if a["alert_type"] == "nwr_approaching")
+        delinq_alerts = sum(1 for a in alerts if a["alert_type"] == "delinquency_rising")
+        critical = sum(1 for a in alerts if a["quarters_until_crossing"] < 2)
+
+        return {
+            "quarter": latest_q,
+            "total": len(alerts),
+            "nwr_alerts": nwr_alerts,
+            "delinquency_alerts": delinq_alerts,
+            "critical": critical,
+            "alerts": alerts,
         }
