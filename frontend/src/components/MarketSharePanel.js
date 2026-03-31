@@ -240,7 +240,7 @@ export default function MarketSharePanel({ activeCU, onSelectInstitution }) {
                     <th>City</th>
                     <th>{data.metric_label}</th>
                     <th>Share</th>
-                    <th style={{ width: '20%' }}>Share</th>
+                    <th style={{ width: '20%' }}></th>
                     <th>Trend</th>
                     <th>Assets</th>
                   </tr>
