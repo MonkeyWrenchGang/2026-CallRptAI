@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fmtAssets, fmtPct, fmtMembers } from '../utils/format';
+import { downloadCSV } from '../utils/csv';
 
 const FLAG_CONFIG = {
   small_assets:          { label: 'Small',       color: '#6b7280', bg: '#f3f4f6' },
@@ -97,6 +98,29 @@ export default function MARadarPanel({ onSelectInstitution }) {
                 ))}
               </select>
             </label>
+            {candidates.length > 0 && (
+              <button
+                type="button"
+                className="export-csv-btn"
+                onClick={() => {
+                  const columns = ['Name', 'State', 'Assets', 'NWR', 'Members', 'Efficiency', 'Delinquency', 'Risk Score', 'Flags'];
+                  const rows = candidates.map((c) => ({
+                    Name: c.name,
+                    State: c.state,
+                    Assets: c.total_assets,
+                    NWR: c.nwr_curr != null ? (c.nwr_curr * 100).toFixed(2) + '%' : '',
+                    Members: c.members_curr,
+                    Efficiency: c.efficiency_ratio != null ? (c.efficiency_ratio * 100).toFixed(2) + '%' : '',
+                    Delinquency: c.delinquency_ratio != null ? (c.delinquency_ratio * 100).toFixed(2) + '%' : '',
+                    'Risk Score': c.risk_score,
+                    Flags: (c.flags || []).join('; '),
+                  }));
+                  downloadCSV(columns, rows, 'ma-radar.csv');
+                }}
+              >
+                Export CSV
+              </button>
+            )}
           </div>
 
           {candidates.length > 0 && (

@@ -2086,7 +2086,7 @@ body {
 .gauge-score {
   font-size: 28px;
   font-weight: 700;
-  margin-top: -20px;
+  margin-top: -8px;
 }
 
 .gauge-label {
@@ -3294,4 +3294,372 @@ body {
 .ms-hhi-desc {
   font-size: 10px;
   color: var(--text-muted);
+}
+
+
+/* ── FRED / Macro Overlay ─────────────────────────────────────────── */
+
+.fred-categories {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.fred-category-title {
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin: 0 0 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fred-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.fred-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  font: inherit;
+  color: inherit;
+}
+
+.fred-card:hover {
+  border-color: var(--teal);
+  box-shadow: 0 2px 8px rgba(29, 158, 117, 0.10);
+}
+
+.fred-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.fred-card-label {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.fred-card-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.fred-card-date {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+
+.fred-change-up {
+  font-size: 11px;
+  font-weight: 600;
+  color: #dc2626;
+}
+
+.fred-change-down {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--teal);
+}
+
+.fred-sparkline {
+  display: block;
+  margin-top: 2px;
+}
+
+/* No API key message */
+.fred-no-key {
+  background: var(--bg-muted);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  max-width: 480px;
+  margin: 40px auto;
+}
+
+.fred-no-key p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.fred-no-key code {
+  background: var(--bg-surface);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.fred-no-key a {
+  color: var(--teal);
+}
+
+/* Detail view */
+.fred-detail {
+  max-width: 700px;
+}
+
+.fred-back-btn {
+  background: none;
+  border: none;
+  color: var(--teal);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 0;
+  margin-bottom: 8px;
+  font: inherit;
+}
+
+.fred-back-btn:hover {
+  text-decoration: underline;
+}
+
+.fred-detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.fred-detail-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin: 0 0 16px;
+}
+
+.fred-detail-chart {
+  width: 100%;
+  max-width: 600px;
+  height: 180px;
+  margin-bottom: 20px;
+}
+
+.fred-detail-table-wrap {
+  max-height: 400px;
+  overflow-y: auto;
+}
+
+@media (max-width: 700px) {
+  .fred-card-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ── Export CSV Button ──────────────────────────────────────────── */
+
+.export-csv-btn {
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--teal-dark);
+  background: var(--teal-soft);
+  border: 1px solid var(--teal);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+}
+
+.export-csv-btn:hover {
+  background: var(--teal);
+  color: #fff;
+}
+
+/* ── Watchlist Panel ────────────────────────────────────────────── */
+
+.watchlist-table th,
+.watchlist-table td {
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.watchlist-row-warn {
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.watchlist-remove-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #991b1b;
+  background: #fee2e2;
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.watchlist-remove-btn:hover {
+  background: #fca5a5;
+}
+
+/* Watch/Unwatch button active state in OverviewRail */
+.rail-action-btn.watchlist-active {
+  background: var(--teal-soft);
+  color: var(--teal-dark);
+  border-color: var(--teal);
+}
+
+.rail-action-btn.watchlist-active:hover {
+  background: var(--teal);
+  color: #fff;
+}
+
+/* ── What-If Panel ──────────────────────────────────────────────── */
+
+.whatif-current-section,
+.whatif-sliders-section,
+.whatif-results-section {
+  margin-bottom: 24px;
+}
+
+.whatif-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 12px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+
+.whatif-sliders {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.whatif-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.whatif-slider-label {
+  width: 140px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.whatif-slider {
+  flex: 1;
+  height: 6px;
+  accent-color: var(--teal);
+  cursor: pointer;
+}
+
+.whatif-slider-value-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.whatif-slider-input {
+  width: 56px;
+  padding: 4px 6px;
+  font-size: 13px;
+  text-align: right;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-surface);
+  color: var(--text);
+}
+
+.whatif-slider-pct {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.whatif-results-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  background: var(--bg-muted);
+  border-radius: var(--radius);
+  padding: 16px;
+}
+
+.whatif-metric-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.whatif-metric-row:last-child {
+  border-bottom: none;
+}
+
+.whatif-metric-label {
+  width: 130px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+
+.whatif-metric-current {
+  width: 80px;
+  text-align: right;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.whatif-metric-arrow {
+  font-size: 16px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.whatif-metric-projected {
+  width: 80px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.whatif-metric-delta {
+  width: 70px;
+  text-align: right;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.whatif-delta-pos {
+  color: #059669;
+}
+
+.whatif-delta-neg {
+  color: #dc2626;
+}
+
+/* QoQ arrows in watchlist */
+.qoq-up {
+  color: #059669;
+  font-size: 11px;
+}
+
+.qoq-down {
+  color: #dc2626;
+  font-size: 11px;
 }

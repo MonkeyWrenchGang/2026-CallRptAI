@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { fmtAssets, fmtPct, fmtMembers } from '../utils/format';
+import { downloadCSV } from '../utils/csv';
 
 const SORT_FIELDS = [
   { key: 'state', label: 'State' },
@@ -73,6 +74,30 @@ export default function LandscapePanel() {
       <header className="compare-header">
         <h2>Competitive Landscape</h2>
         {data?.quarter && <span className="compare-quarter-label">{data.quarter}</span>}
+        {states.length > 0 && (
+          <button
+            type="button"
+            className="export-csv-btn"
+            onClick={() => {
+              const columns = ['State', 'CUs', 'Total Assets', 'Members', 'Avg ROA', 'Avg NWR', 'Avg Delinq.', 'Avg Efficiency', 'Health', 'Below 7%'];
+              const rows = states.map((s) => ({
+                State: s.state,
+                CUs: s.cu_count,
+                'Total Assets': s.total_assets,
+                Members: s.total_members,
+                'Avg ROA': s.avg_roa != null ? (s.avg_roa * 100).toFixed(2) + '%' : '',
+                'Avg NWR': s.avg_nwr != null ? (s.avg_nwr * 100).toFixed(2) + '%' : '',
+                'Avg Delinq.': s.avg_delinquency != null ? (s.avg_delinquency * 100).toFixed(2) + '%' : '',
+                'Avg Efficiency': s.avg_efficiency != null ? (s.avg_efficiency * 100).toFixed(2) + '%' : '',
+                Health: s.health_score,
+                'Below 7%': s.below_7pct || 0,
+              }));
+              downloadCSV(columns, rows, 'landscape.csv');
+            }}
+          >
+            Export CSV
+          </button>
+        )}
       </header>
 
       {loading && <p className="compare-message">Loading landscape data...</p>}

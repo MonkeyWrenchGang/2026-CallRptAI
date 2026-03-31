@@ -6,7 +6,10 @@ import ComparePanel from './components/ComparePanel';
 import MARadarPanel from './components/MARadarPanel';
 import LandscapePanel from './components/LandscapePanel';
 import MarketSharePanel from './components/MarketSharePanel';
+import FredPanel from './components/FredPanel';
 import ReportModal from './components/ReportModal';
+import WatchlistPanel from './components/WatchlistPanel';
+import WhatIfPanel from './components/WhatIfPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
@@ -30,14 +33,16 @@ const MARKET_SUGGESTIONS = [
 ];
 
 // ── QoQ arrow helper ──────────────────────────────────────────────────────
-function QoQArrow({ current, previous, invert = false }) {
+function QoQArrow({ current, previous, invert = false, absolute = false }) {
   if (current == null || previous == null) return null;
   const delta = current - previous;
   if (Math.abs(delta) < 0.000001) return <span className="qoq-flat">—</span>;
   const isPositive = invert ? delta < 0 : delta > 0;
+  // For absolute values (assets, members) compute relative change; ratios are already fractional
+  const pctDelta = absolute && previous !== 0 ? delta / previous : delta;
   return (
     <span className={`qoq-arrow ${isPositive ? 'qoq-up' : 'qoq-down'}`}>
-      {isPositive ? '▲' : '▼'} {fmtPctChange(delta)}
+      {isPositive ? '▲' : '▼'} {fmtPctChange(pctDelta)}
     </span>
   );
 }
@@ -240,7 +245,7 @@ function PulseView({ onSelectInstitution }) {
             <div className="pulse-kpi">
               <div className="pulse-kpi-label">Total Assets</div>
               <div className="pulse-kpi-value mono">{fmtAssets(s.total_assets)}</div>
-              <QoQArrow current={s.total_assets} previous={ps.total_assets} />
+              <QoQArrow current={s.total_assets} previous={ps.total_assets} absolute />
             </div>
             <div className="pulse-kpi">
               <div className="pulse-kpi-label">Total Members</div>
@@ -607,6 +612,27 @@ export default function App() {
           >
             Share
           </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'fred' ? 'active' : ''}`}
+            onClick={() => setActiveView('fred')}
+          >
+            Macro
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'watchlist' ? 'active' : ''}`}
+            onClick={() => setActiveView('watchlist')}
+          >
+            Watchlist
+          </button>
+          <button
+            type="button"
+            className={`topbar-nav-item ${activeView === 'what-if' ? 'active' : ''}`}
+            onClick={() => setActiveView('what-if')}
+          >
+            What-If
+          </button>
         </nav>
         <div className="topbar-right">
           <span className={`topbar-pill ${aiEnabled ? 'on' : ''}`}>
@@ -678,6 +704,18 @@ export default function App() {
                 <MarketSharePanel
                   activeCU={activeCU}
                   onSelectInstitution={selectInstitution}
+                />
+              ) : activeView === 'fred' ? (
+                <FredPanel />
+              ) : activeView === 'watchlist' ? (
+                <WatchlistPanel onSelectInstitution={selectInstitution} />
+              ) : activeView === 'what-if' ? (
+                <WhatIfPanel
+                  activeCU={activeCU}
+                  onSendChat={(text) => {
+                    setActiveView('ask');
+                    sendMessage(text);
+                  }}
                 />
               ) : null}
             </div>

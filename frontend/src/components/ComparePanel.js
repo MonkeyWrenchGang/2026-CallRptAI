@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { fmtPct, fmtMembers } from '../utils/format';
 import PeerGroupBuilder from './PeerGroupBuilder';
+import { downloadCSV } from '../utils/csv';
 
 const TEAL = '#1D9E75';
 const COLORS = ['#1D9E75', '#2563eb', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6', '#f97316'];
@@ -338,9 +339,9 @@ export default function ComparePanel({ activeCU, compareCUs, onCompareCUsChange,
             )}
           </section>
 
-          {/* Explain gaps button */}
-          {onSendChat && (
-            <div className="compare-actions">
+          {/* Explain gaps + Export */}
+          <div className="compare-actions">
+            {onSendChat && (
               <button
                 type="button"
                 className="explain-gaps-btn"
@@ -348,8 +349,23 @@ export default function ComparePanel({ activeCU, compareCUs, onCompareCUsChange,
               >
                 Explain these gaps
               </button>
-            </div>
-          )}
+            )}
+            <button
+              type="button"
+              className="export-csv-btn"
+              onClick={() => {
+                const columns = ['Name', 'State', ...METRIC_ROWS.map((r) => r.label)];
+                const rows = cus.map((cu) => {
+                  const row = { Name: cu.institution?.name || '', State: cu.institution?.state || '' };
+                  METRIC_ROWS.forEach((m) => { row[m.label] = m.fmt(cu.latest?.[m.key]); });
+                  return row;
+                });
+                downloadCSV(columns, rows, 'compare.csv');
+              }}
+            >
+              Export CSV
+            </button>
+          </div>
         </>
       )}
 

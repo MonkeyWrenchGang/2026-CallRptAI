@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange, capitalLabel } from '../utils/format';
+import { isWatched, toggleWatch } from './WatchlistPanel';
 
 const TEAL = '#1D9E75';
 const TEAL_LIGHT = '#e1f5ee';
@@ -78,6 +79,7 @@ export default function OverviewRail({
   const [peers, setPeers] = useState(null);
   const [peersLoading, setPeersLoading] = useState(false);
   const [marketShare, setMarketShare] = useState(null);
+  const [watched, setWatched] = useState(false);
 
   useEffect(() => {
     if (!activeCU) {
@@ -86,8 +88,10 @@ export default function OverviewRail({
       setAiSummary(null);
       setPeers(null);
       setMarketShare(null);
+      setWatched(false);
       return;
     }
+    setWatched(isWatched(activeCU));
     let cancelled = false;
     setLoading(true);
     setError(false);
@@ -446,6 +450,16 @@ export default function OverviewRail({
                   Generate Report
                 </button>
               )}
+              <button
+                type="button"
+                className={`rail-action-btn ${watched ? 'watchlist-active' : 'secondary'}`}
+                onClick={() => {
+                  const nowWatched = toggleWatch(activeCU);
+                  setWatched(nowWatched);
+                }}
+              >
+                {watched ? '\u2605 Unwatch' : '\u2606 Watch'}
+              </button>
             </div>
 
             {pcts.peer_count != null && activeTab === 'overview' && (
