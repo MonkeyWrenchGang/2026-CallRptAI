@@ -16,6 +16,11 @@ import EarningsAtRiskPanel from './components/EarningsAtRiskPanel';
 import ReportBuilderPanel from './components/ReportBuilderPanel';
 import CohortPanel from './components/CohortPanel';
 import SeasonalPanel from './components/SeasonalPanel';
+import EmbedPanel from './components/EmbedPanel';
+import FredOverlayPanel from './components/FredOverlayPanel';
+import ScheduleDeepDive from './components/ScheduleDeepDive';
+import FOMPanel from './components/FOMPanel';
+import CFPBPanel from './components/CFPBPanel';
 import { useMediaQuery } from './hooks/useMediaQuery';
 import { fmtAssets, fmtPct, fmtMembers, fmtPctChange } from './utils/format';
 import './App.css';
@@ -433,6 +438,24 @@ export default function App() {
     try { return localStorage.getItem('callrptai_darkmode') === 'true'; } catch { return false; }
   });
 
+  // Saved views (Feature 1)
+  const [savedViews, setSavedViews] = useState(() => {
+    try {
+      const raw = localStorage.getItem('callrptai_saved_views');
+      return raw ? JSON.parse(raw) : [];
+    } catch { return []; }
+  });
+  const [showSavedViews, setShowSavedViews] = useState(false);
+
+  // More dropdown for extra nav items
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  // Embed share popover
+  const [showSharePopover, setShowSharePopover] = useState(false);
+
+  // Mobile hamburger
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
   const isNarrow = useMediaQuery('(max-width: 900px)');
 
   const messagesEndRef = useRef(null);
@@ -456,6 +479,30 @@ export default function App() {
   useEffect(() => {
     try { localStorage.setItem('callrptai_darkmode', darkMode); } catch {}
   }, [darkMode]);
+
+  // Persist saved views
+  useEffect(() => {
+    try { localStorage.setItem('callrptai_saved_views', JSON.stringify(savedViews)); } catch {}
+  }, [savedViews]);
+
+  const handleSaveView = () => {
+    const name = window.prompt('Name this saved view:');
+    if (!name || !name.trim()) return;
+    const view = { name: name.trim(), activeView, activeCU, timestamp: Date.now() };
+    setSavedViews((prev) => [...prev, view]);
+  };
+
+  const handleLoadView = (view) => {
+    setActiveView(view.activeView);
+    if (view.activeCU) {
+      setActiveCU(view.activeCU);
+    }
+    setShowSavedViews(false);
+  };
+
+  const handleDeleteView = (idx) => {
+    setSavedViews((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   // Check health / AI status
   useEffect(() => {
@@ -583,114 +630,122 @@ export default function App() {
             <span className="topbar-sub">NCUA 5300 · CU Intelligence</span>
           </div>
         </div>
-        <nav className="topbar-nav" aria-label="Primary">
+        {/* Mobile hamburger toggle */}
+        <button
+          type="button"
+          className="topbar-hamburger"
+          onClick={() => setMobileNavOpen((o) => !o)}
+          aria-label="Toggle navigation"
+        >
+          {mobileNavOpen ? '\u2715' : '\u2630'}
+        </button>
+
+        <nav className={`topbar-nav ${mobileNavOpen ? 'mobile-open' : ''}`} aria-label="Primary">
+          <button type="button" className={`topbar-nav-item ${activeView === 'pulse' ? 'active' : ''}`}
+            onClick={() => { setActiveView('pulse'); setMobileNavOpen(false); }}>Pulse</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'ask' ? 'active' : ''}`}
+            onClick={() => { setActiveView('ask'); setMobileNavOpen(false); }}>Ask</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'compare' ? 'active' : ''}`}
+            onClick={() => { setActiveView('compare'); setMobileNavOpen(false); }}>Compare</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'ma-radar' ? 'active' : ''}`}
+            onClick={() => { setActiveView('ma-radar'); setMobileNavOpen(false); }}>M&A</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'landscape' ? 'active' : ''}`}
+            onClick={() => { setActiveView('landscape'); setMobileNavOpen(false); }}>Landscape</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'market-share' ? 'active' : ''}`}
+            onClick={() => { setActiveView('market-share'); setMobileNavOpen(false); }}>Share</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'fred' ? 'active' : ''}`}
+            onClick={() => { setActiveView('fred'); setMobileNavOpen(false); }}>Macro</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'watchlist' ? 'active' : ''}`}
+            onClick={() => { setActiveView('watchlist'); setMobileNavOpen(false); }}>Watchlist</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'what-if' ? 'active' : ''}`}
+            onClick={() => { setActiveView('what-if'); setMobileNavOpen(false); }}>What-If</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'anomalies' ? 'active' : ''}`}
+            onClick={() => { setActiveView('anomalies'); setMobileNavOpen(false); }}>Anomalies</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'alerts' ? 'active' : ''}`}
+            onClick={() => { setActiveView('alerts'); setMobileNavOpen(false); }}>Alerts</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'ear' ? 'active' : ''}`}
+            onClick={() => { setActiveView('ear'); setMobileNavOpen(false); }}>EaR</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'report-builder' ? 'active' : ''}`}
+            onClick={() => { setActiveView('report-builder'); setMobileNavOpen(false); }}>Report</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'cohort' ? 'active' : ''}`}
+            onClick={() => { setActiveView('cohort'); setMobileNavOpen(false); }}>Cohort</button>
+          <button type="button" className={`topbar-nav-item ${activeView === 'seasonal' ? 'active' : ''}`}
+            onClick={() => { setActiveView('seasonal'); setMobileNavOpen(false); }}>Seasonal</button>
+
+          {/* More dropdown for new features */}
+          <div className="topbar-more-wrap">
+            <button type="button"
+              className={`topbar-nav-item topbar-more-btn ${['rate-overlay', 'schedules', 'fom', 'cfpb', 'embed'].includes(activeView) ? 'active' : ''}`}
+              onClick={() => setMoreOpen((o) => !o)}
+            >
+              More {moreOpen ? '\u25B2' : '\u25BC'}
+            </button>
+            {moreOpen && (
+              <div className="topbar-more-dropdown">
+                <button type="button" className={`topbar-more-item ${activeView === 'rate-overlay' ? 'active' : ''}`}
+                  onClick={() => { setActiveView('rate-overlay'); setMoreOpen(false); setMobileNavOpen(false); }}>Rate Overlay</button>
+                <button type="button" className={`topbar-more-item ${activeView === 'schedules' ? 'active' : ''}`}
+                  onClick={() => { setActiveView('schedules'); setMoreOpen(false); setMobileNavOpen(false); }}>5300 Schedules</button>
+                <button type="button" className={`topbar-more-item ${activeView === 'fom' ? 'active' : ''}`}
+                  onClick={() => { setActiveView('fom'); setMoreOpen(false); setMobileNavOpen(false); }}>FOM / Charter</button>
+                <button type="button" className={`topbar-more-item ${activeView === 'cfpb' ? 'active' : ''}`}
+                  onClick={() => { setActiveView('cfpb'); setMoreOpen(false); setMobileNavOpen(false); }}>CFPB</button>
+                <button type="button" className={`topbar-more-item ${activeView === 'embed' ? 'active' : ''}`}
+                  onClick={() => { setActiveView('embed'); setMoreOpen(false); setMobileNavOpen(false); }}>Embed</button>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="topbar-right">
+          {/* Save View button (Feature 1) */}
+          <div className="saved-views-wrap">
+            <button
+              type="button"
+              className="topbar-small-btn"
+              onClick={handleSaveView}
+              title="Save current view"
+            >
+              Save View
+            </button>
+            <button
+              type="button"
+              className="topbar-small-btn"
+              onClick={() => setShowSavedViews((o) => !o)}
+              title="Saved views"
+            >
+              Views ({savedViews.length})
+            </button>
+            {showSavedViews && (
+              <div className="saved-views-dropdown">
+                {savedViews.length === 0 ? (
+                  <div className="saved-views-empty">No saved views yet</div>
+                ) : (
+                  savedViews.map((v, i) => (
+                    <div key={i} className="saved-view-item">
+                      <button type="button" className="saved-view-load" onClick={() => handleLoadView(v)}>
+                        <span className="saved-view-name">{v.name}</span>
+                        <span className="saved-view-meta">{v.activeView}{v.activeCU ? ` · CU ${v.activeCU}` : ''}</span>
+                      </button>
+                      <button type="button" className="saved-view-delete" onClick={() => handleDeleteView(i)}
+                        title="Delete">&times;</button>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Share / Embed button (Feature 2) */}
           <button
             type="button"
-            className={`topbar-nav-item ${activeView === 'pulse' ? 'active' : ''}`}
-            onClick={() => setActiveView('pulse')}
-          >
-            Pulse
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'ask' ? 'active' : ''}`}
-            onClick={() => setActiveView('ask')}
-          >
-            Ask
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'compare' ? 'active' : ''}`}
-            onClick={() => setActiveView('compare')}
-          >
-            Compare
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'ma-radar' ? 'active' : ''}`}
-            onClick={() => setActiveView('ma-radar')}
-          >
-            M&A
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'landscape' ? 'active' : ''}`}
-            onClick={() => setActiveView('landscape')}
-          >
-            Landscape
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'market-share' ? 'active' : ''}`}
-            onClick={() => setActiveView('market-share')}
+            className="topbar-small-btn"
+            onClick={() => setActiveView('embed')}
+            title="Share / Embed widgets"
           >
             Share
           </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'fred' ? 'active' : ''}`}
-            onClick={() => setActiveView('fred')}
-          >
-            Macro
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'watchlist' ? 'active' : ''}`}
-            onClick={() => setActiveView('watchlist')}
-          >
-            Watchlist
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'what-if' ? 'active' : ''}`}
-            onClick={() => setActiveView('what-if')}
-          >
-            What-If
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'anomalies' ? 'active' : ''}`}
-            onClick={() => setActiveView('anomalies')}
-          >
-            Anomalies
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'alerts' ? 'active' : ''}`}
-            onClick={() => setActiveView('alerts')}
-          >
-            Alerts
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'ear' ? 'active' : ''}`}
-            onClick={() => setActiveView('ear')}
-          >
-            EaR
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'report-builder' ? 'active' : ''}`}
-            onClick={() => setActiveView('report-builder')}
-          >
-            Report
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'cohort' ? 'active' : ''}`}
-            onClick={() => setActiveView('cohort')}
-          >
-            Cohort
-          </button>
-          <button
-            type="button"
-            className={`topbar-nav-item ${activeView === 'seasonal' ? 'active' : ''}`}
-            onClick={() => setActiveView('seasonal')}
-          >
-            Seasonal
-          </button>
-        </nav>
-        <div className="topbar-right">
+
           <button
             type="button"
             className="dark-mode-toggle"
@@ -707,6 +762,16 @@ export default function App() {
       </header>
 
       <div className="app-body">
+        {/* Mobile floating button to open sidebar */}
+        <button
+          type="button"
+          className="sidebar-mobile-open-btn"
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open sidebar"
+        >
+          &#9776;
+        </button>
+
         <Sidebar
           sidebarOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
@@ -797,6 +862,16 @@ export default function App() {
                 <CohortPanel />
               ) : activeView === 'seasonal' ? (
                 <SeasonalPanel />
+              ) : activeView === 'rate-overlay' ? (
+                <FredOverlayPanel activeCU={activeCU} />
+              ) : activeView === 'schedules' ? (
+                <ScheduleDeepDive activeCU={activeCU} />
+              ) : activeView === 'fom' ? (
+                <FOMPanel activeCU={activeCU} />
+              ) : activeView === 'cfpb' ? (
+                <CFPBPanel activeCU={activeCU} selectedInstitution={selectedInstitution} />
+              ) : activeView === 'embed' ? (
+                <EmbedPanel activeCU={activeCU} />
               ) : null}
             </div>
 

@@ -1897,3 +1897,106 @@ def seasonal_patterns():
             "years_covered": years_covered,
             "quarters": results,
         }
+
+
+# ── CFPB Complaints ──────────────────────────────────────────────────────
+
+_cfpb_cache: dict = {}
+_CFPB_CACHE_TTL = 3600  # 1 hour
+
+@router.get("/cfpb-complaints/search")
+def cfpb_complaints_search(company: str = Query(..., min_length=2)):
+    """Search CFPB complaints by company name."""
+    return _fetch_cfpb(company_name=company)
+
+
+@router.get("/cfpb-complaints/{cu_number}")
+def cfpb_complaints(cu_number: str):
+    """Look up CU name, then search CFPB API for complaints."""
+    # Resolve CU name from our database
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT name FROM institutions WHERE cu_number = ?", (cu_number,)
+        ).fetchone()
+    cu_name = dict(row)["name"] if row else None
+    if not cu_name:
+        raise HTTPException(status_code=404, detail="Credit union not found")
+    return _fetch_cfpb(company_name=cu_name, cu_number=cu_number)
+
+
+def _fetch_cfpb(company_name: str, cu_number: str | None = None) -> dict:
+    """Fetch complaints from CFPB API with caching. Returns structured summary."""
+    cache_key = company_name.lower().strip()
+    now = time.time()
+
+    # Check cache
+    if cache_key in _cfpb_cache:
+        cached, ts = _cfpb_cache[cache_key]
+        if now - ts < _CFPB_CACHE_TTL:
+            return cached
+
+    try:
+        search_term = company_name.replace(" ", "+")
+        url = (
+            f"https://www.consumerfinance.gov/data-research/consumer-complaints/"
+            f"search/api/v1/?company={search_term}&size=25&sort=created_date_desc"
+            f"&no_aggs=false"
+        )
+        req = urllib.request.Request(url, headers={"User-Agent": "CallRptAI/1.0"})
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            data = json.loads(resp.read().decode())
+
+        hits = data.get("hits", {}).get("hits", [])
+        total = data.get("hits", {}).get("total", {})
+        total_count = total.get("value", 0) if isinstance(total, dict) else int(total or 0)
+
+        # Aggregate top products and issues
+        product_counts: dict[str, int] = {}
+        issue_counts: dict[str, int] = {}
+        timely_count = 0
+        recent = []
+
+        for hit in hits:
+            src = hit.get("_source", {})
+            prod = src.get("product", "Unknown")
+            issue = src.get("issue", "Unknown")
+            product_counts[prod] = product_counts.get(prod, 0) + 1
+            issue_counts[issue] = issue_counts.get(issue, 0) + 1
+            if src.get("timely") == "Yes":
+                timely_count += 1
+            recent.append({
+                "date_received": src.get("date_received"),
+                "product": prod,
+                "issue": issue,
+                "company_response": src.get("company_response"),
+            })
+
+        top_products = sorted(product_counts.items(), key=lambda x: -x[1])[:8]
+        top_issues = sorted(issue_counts.items(), key=lambda x: -x[1])[:8]
+
+        result = {
+            "company_name": company_name,
+            "cu_number": cu_number,
+            "total_complaints": total_count,
+            "timely_response_pct": round(timely_count / len(hits) * 100) if hits else None,
+            "top_products": [{"product": p, "count": c} for p, c in top_products],
+            "top_issues": [{"issue": i, "count": c} for i, c in top_issues],
+            "recent": recent[:10],
+            "note": None,
+        }
+
+    except Exception:
+        # CFPB API unavailable — return empty result with a note
+        result = {
+            "company_name": company_name,
+            "cu_number": cu_number,
+            "total_complaints": 0,
+            "timely_response_pct": None,
+            "top_products": [],
+            "top_issues": [],
+            "recent": [],
+            "note": "CFPB complaint data is currently unavailable. The API may be down or unreachable.",
+        }
+
+    _cfpb_cache[cache_key] = (result, now)
+    return result
