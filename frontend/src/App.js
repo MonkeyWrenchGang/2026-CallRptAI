@@ -630,122 +630,81 @@ export default function App() {
             <span className="topbar-sub">NCUA 5300 · CU Intelligence</span>
           </div>
         </div>
-        {/* Mobile hamburger toggle */}
-        <button
-          type="button"
-          className="topbar-hamburger"
-          onClick={() => setMobileNavOpen((o) => !o)}
-          aria-label="Toggle navigation"
-        >
-          {mobileNavOpen ? '\u2715' : '\u2630'}
-        </button>
 
-        <nav className={`topbar-nav ${mobileNavOpen ? 'mobile-open' : ''}`} aria-label="Primary">
-          <button type="button" className={`topbar-nav-item ${activeView === 'pulse' ? 'active' : ''}`}
-            onClick={() => { setActiveView('pulse'); setMobileNavOpen(false); }}>Pulse</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'ask' ? 'active' : ''}`}
-            onClick={() => { setActiveView('ask'); setMobileNavOpen(false); }}>Ask</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'compare' ? 'active' : ''}`}
-            onClick={() => { setActiveView('compare'); setMobileNavOpen(false); }}>Compare</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'ma-radar' ? 'active' : ''}`}
-            onClick={() => { setActiveView('ma-radar'); setMobileNavOpen(false); }}>M&A</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'landscape' ? 'active' : ''}`}
-            onClick={() => { setActiveView('landscape'); setMobileNavOpen(false); }}>Landscape</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'market-share' ? 'active' : ''}`}
-            onClick={() => { setActiveView('market-share'); setMobileNavOpen(false); }}>Share</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'fred' ? 'active' : ''}`}
-            onClick={() => { setActiveView('fred'); setMobileNavOpen(false); }}>Macro</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'watchlist' ? 'active' : ''}`}
-            onClick={() => { setActiveView('watchlist'); setMobileNavOpen(false); }}>Watchlist</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'what-if' ? 'active' : ''}`}
-            onClick={() => { setActiveView('what-if'); setMobileNavOpen(false); }}>What-If</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'anomalies' ? 'active' : ''}`}
-            onClick={() => { setActiveView('anomalies'); setMobileNavOpen(false); }}>Anomalies</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'alerts' ? 'active' : ''}`}
-            onClick={() => { setActiveView('alerts'); setMobileNavOpen(false); }}>Alerts</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'ear' ? 'active' : ''}`}
-            onClick={() => { setActiveView('ear'); setMobileNavOpen(false); }}>EaR</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'report-builder' ? 'active' : ''}`}
-            onClick={() => { setActiveView('report-builder'); setMobileNavOpen(false); }}>Report</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'cohort' ? 'active' : ''}`}
-            onClick={() => { setActiveView('cohort'); setMobileNavOpen(false); }}>Cohort</button>
-          <button type="button" className={`topbar-nav-item ${activeView === 'seasonal' ? 'active' : ''}`}
-            onClick={() => { setActiveView('seasonal'); setMobileNavOpen(false); }}>Seasonal</button>
-
-          {/* More dropdown for new features */}
-          <div className="topbar-more-wrap">
-            <button type="button"
-              className={`topbar-nav-item topbar-more-btn ${['rate-overlay', 'schedules', 'fom', 'cfpb', 'embed'].includes(activeView) ? 'active' : ''}`}
-              onClick={() => setMoreOpen((o) => !o)}
-            >
-              More {moreOpen ? '\u25B2' : '\u25BC'}
-            </button>
-            {moreOpen && (
-              <div className="topbar-more-dropdown">
-                <button type="button" className={`topbar-more-item ${activeView === 'rate-overlay' ? 'active' : ''}`}
-                  onClick={() => { setActiveView('rate-overlay'); setMoreOpen(false); setMobileNavOpen(false); }}>Rate Overlay</button>
-                <button type="button" className={`topbar-more-item ${activeView === 'schedules' ? 'active' : ''}`}
-                  onClick={() => { setActiveView('schedules'); setMoreOpen(false); setMobileNavOpen(false); }}>5300 Schedules</button>
-                <button type="button" className={`topbar-more-item ${activeView === 'fom' ? 'active' : ''}`}
-                  onClick={() => { setActiveView('fom'); setMoreOpen(false); setMobileNavOpen(false); }}>FOM / Charter</button>
-                <button type="button" className={`topbar-more-item ${activeView === 'cfpb' ? 'active' : ''}`}
-                  onClick={() => { setActiveView('cfpb'); setMoreOpen(false); setMobileNavOpen(false); }}>CFPB</button>
-                <button type="button" className={`topbar-more-item ${activeView === 'embed' ? 'active' : ''}`}
-                  onClick={() => { setActiveView('embed'); setMoreOpen(false); setMobileNavOpen(false); }}>Embed</button>
-              </div>
-            )}
-          </div>
+        {/* Primary mode tabs */}
+        <nav className="topbar-modes" aria-label="Primary">
+          {[
+            { key: 'market', label: 'Market' },
+            { key: 'institution', label: 'Institution' },
+            { key: 'compare', label: 'Compare' },
+          ].map((mode) => {
+            const isDisabled = mode.key === 'institution' && !activeCU;
+            const modeViews = {
+              market: ['pulse', 'landscape', 'anomalies', 'alerts', 'cohort', 'seasonal', 'rate-overlay'],
+              institution: ['ask', 'what-if', 'ear', 'report-builder', 'market-share', 'cfpb', 'schedules', 'fom'],
+              compare: ['compare', 'ma-radar', 'watchlist'],
+            };
+            const isActive = modeViews[mode.key]?.includes(activeView);
+            return (
+              <button
+                key={mode.key}
+                type="button"
+                className={`topbar-mode-btn ${isActive ? 'active' : ''} ${isDisabled ? 'disabled' : ''}`}
+                onClick={() => {
+                  if (isDisabled) return;
+                  const defaults = { market: 'pulse', institution: 'ask', compare: 'compare' };
+                  setActiveView(defaults[mode.key]);
+                }}
+                title={isDisabled ? 'Select a credit union first' : ''}
+              >
+                {mode.label}
+                {mode.key === 'institution' && activeCU && selectedInstitution && (
+                  <span className="mode-cu-badge">{selectedInstitution.name?.split(' ')[0]}</span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         <div className="topbar-right">
-          {/* Save View button (Feature 1) */}
-          <div className="saved-views-wrap">
-            <button
-              type="button"
-              className="topbar-small-btn"
-              onClick={handleSaveView}
-              title="Save current view"
-            >
-              Save View
+          {/* Tools dropdown */}
+          <div className="topbar-more-wrap">
+            <button type="button" className="topbar-small-btn" onClick={() => setMoreOpen((o) => !o)}>
+              Tools {moreOpen ? '\u25B2' : '\u25BC'}
             </button>
-            <button
-              type="button"
-              className="topbar-small-btn"
-              onClick={() => setShowSavedViews((o) => !o)}
-              title="Saved views"
-            >
-              Views ({savedViews.length})
-            </button>
-            {showSavedViews && (
-              <div className="saved-views-dropdown">
-                {savedViews.length === 0 ? (
-                  <div className="saved-views-empty">No saved views yet</div>
-                ) : (
-                  savedViews.map((v, i) => (
-                    <div key={i} className="saved-view-item">
-                      <button type="button" className="saved-view-load" onClick={() => handleLoadView(v)}>
-                        <span className="saved-view-name">{v.name}</span>
-                        <span className="saved-view-meta">{v.activeView}{v.activeCU ? ` · CU ${v.activeCU}` : ''}</span>
-                      </button>
-                      <button type="button" className="saved-view-delete" onClick={() => handleDeleteView(i)}
-                        title="Delete">&times;</button>
-                    </div>
-                  ))
-                )}
+            {moreOpen && (
+              <div className="topbar-more-dropdown">
+                <button type="button" className="topbar-more-item" onClick={handleSaveView}>Save View</button>
+                <button type="button" className="topbar-more-item" onClick={() => setShowSavedViews((o) => !o)}>
+                  Saved Views ({savedViews.length})
+                </button>
+                <button type="button" className="topbar-more-item" onClick={() => { setActiveView('embed'); setMoreOpen(false); }}>
+                  Embed / Share
+                </button>
+                <button type="button" className="topbar-more-item" onClick={() => { setActiveView('fred'); setMoreOpen(false); }}>
+                  FRED Macro Data
+                </button>
               </div>
             )}
           </div>
-
-          {/* Share / Embed button (Feature 2) */}
-          <button
-            type="button"
-            className="topbar-small-btn"
-            onClick={() => setActiveView('embed')}
-            title="Share / Embed widgets"
-          >
-            Share
-          </button>
-
+          {showSavedViews && (
+            <div className="saved-views-dropdown">
+              {savedViews.length === 0 ? (
+                <div className="saved-views-empty">No saved views yet</div>
+              ) : (
+                savedViews.map((v, i) => (
+                  <div key={i} className="saved-view-item">
+                    <button type="button" className="saved-view-load" onClick={() => handleLoadView(v)}>
+                      <span className="saved-view-name">{v.name}</span>
+                      <span className="saved-view-meta">{v.activeView}{v.activeCU ? ` · CU ${v.activeCU}` : ''}</span>
+                    </button>
+                    <button type="button" className="saved-view-delete" onClick={() => handleDeleteView(i)}
+                      title="Delete">&times;</button>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
           <button
             type="button"
             className="dark-mode-toggle"
@@ -760,6 +719,58 @@ export default function App() {
           </span>
         </div>
       </header>
+
+      {/* Sub-navigation row */}
+      {(() => {
+        const marketViews = ['pulse', 'landscape', 'anomalies', 'alerts', 'cohort', 'seasonal', 'rate-overlay'];
+        const instViews = ['ask', 'what-if', 'ear', 'report-builder', 'market-share', 'cfpb', 'schedules', 'fom'];
+        const compareViews = ['compare', 'ma-radar', 'watchlist'];
+
+        let subItems = [];
+        if (marketViews.includes(activeView)) {
+          subItems = [
+            { key: 'pulse', label: 'Pulse' },
+            { key: 'landscape', label: 'Landscape' },
+            { key: 'anomalies', label: 'Anomalies' },
+            { key: 'alerts', label: 'Alerts' },
+            { key: 'cohort', label: 'Cohort' },
+            { key: 'seasonal', label: 'Seasonal' },
+            { key: 'rate-overlay', label: 'Rate Overlay' },
+          ];
+        } else if (instViews.includes(activeView)) {
+          subItems = [
+            { key: 'ask', label: 'Ask' },
+            { key: 'what-if', label: 'What-If' },
+            { key: 'ear', label: 'Earnings at Risk' },
+            { key: 'report-builder', label: 'Report' },
+            { key: 'market-share', label: 'Market Share' },
+            { key: 'cfpb', label: 'CFPB' },
+            { key: 'schedules', label: '5300 Schedules' },
+            { key: 'fom', label: 'FOM / Charter' },
+          ];
+        } else if (compareViews.includes(activeView)) {
+          subItems = [
+            { key: 'compare', label: 'Compare' },
+            { key: 'ma-radar', label: 'M&A Radar' },
+            { key: 'watchlist', label: 'Watchlist' },
+          ];
+        }
+
+        return subItems.length > 0 ? (
+          <div className="sub-nav">
+            {subItems.map((item) => (
+              <button
+                key={item.key}
+                type="button"
+                className={`sub-nav-item ${activeView === item.key ? 'active' : ''}`}
+                onClick={() => setActiveView(item.key)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ) : null;
+      })()}
 
       <div className="app-body">
         {/* Mobile floating button to open sidebar */}
