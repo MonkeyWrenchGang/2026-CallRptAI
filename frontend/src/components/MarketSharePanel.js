@@ -99,20 +99,30 @@ function PercentileBar({ value, label, invert = false }) {
   );
 }
 
-/* ── Sparkline for pulse KPI ────────────────────────────────────────── */
-function PulseKpiSparkline({ data, field, width = 70, height = 20, color = 'var(--teal)' }) {
+/* ── Sparkline for pulse KPI with threshold lines ──────────────────── */
+function PulseKpiSparkline({ data, field, width = 70, height = 20, color = 'var(--teal)', thresholds = [] }) {
   if (!data || data.length < 2) return null;
   const vals = data.map((d) => Number(d[field] ?? 0));
-  const min = Math.min(...vals);
-  const max = Math.max(...vals);
+  // Include threshold values in min/max so lines are always visible
+  const allVals = [...vals, ...thresholds.map((t) => t.value)];
+  const min = Math.min(...allVals);
+  const max = Math.max(...allVals);
   const range = max - min || 0.0001;
+  const yFor = (v) => height - ((v - min) / range) * (height - 4) - 2;
   const pts = vals.map((v, i) => {
     const x = (i / (vals.length - 1)) * width;
-    const y = height - ((v - min) / range) * (height - 4) - 2;
-    return `${x.toFixed(1)},${y.toFixed(1)}`;
+    return `${x.toFixed(1)},${yFor(v).toFixed(1)}`;
   }).join(' ');
   return (
     <svg width={width} height={height} style={{ display: 'inline-block', verticalAlign: 'middle' }}>
+      {thresholds.map((t) => {
+        const y = yFor(t.value);
+        return (
+          <line key={t.label} x1="0" y1={y} x2={width} y2={y}
+            stroke={t.color || '#dc2626'} strokeWidth="0.75"
+            strokeDasharray={t.dash || '3,2'} opacity="0.7" />
+        );
+      })}
       <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
@@ -163,11 +173,31 @@ function CUPulse({ cuNumber }) {
   const prev = trend && trend.length >= 2 ? trend[trend.length - 2] : null;
 
   const kpis = [
-    { label: 'ROA', value: fmtPct(latest.roa, 3), field: 'roa', color: '#1D9E75', prev: prev?.roa, curr: latest.roa },
-    { label: 'Net Worth', value: fmtPct(latest.net_worth_ratio, 2), field: 'net_worth_ratio', color: '#2563eb', prev: prev?.net_worth_ratio, curr: latest.net_worth_ratio },
-    { label: 'Delinquency', value: fmtPct(latest.delinquency_ratio, 3), field: 'delinquency_ratio', color: '#dc2626', prev: prev?.delinquency_ratio, curr: latest.delinquency_ratio, invert: true },
-    { label: 'Loan/Share', value: fmtPct(latest.loan_to_share_ratio, 1), field: 'loan_to_share_ratio', color: '#8b5cf6', prev: prev?.loan_to_share_ratio, curr: latest.loan_to_share_ratio },
-    { label: 'Efficiency', value: fmtPct(latest.efficiency_ratio, 1), field: 'efficiency_ratio', color: '#ef9f27', prev: prev?.efficiency_ratio, curr: latest.efficiency_ratio, invert: true },
+    { label: 'ROA', value: fmtPct(latest.roa, 3), field: 'roa', color: '#1D9E75', prev: prev?.roa, curr: latest.roa,
+      thresholds: [
+        { value: 0.005, color: '#ef9f27', label: 'Peer avg', dash: '3,2' },
+        { value: 0, color: '#dc2626', label: 'Breakeven', dash: '2,2' },
+      ] },
+    { label: 'Net Worth', value: fmtPct(latest.net_worth_ratio, 2), field: 'net_worth_ratio', color: '#2563eb', prev: prev?.net_worth_ratio, curr: latest.net_worth_ratio,
+      thresholds: [
+        { value: 0.10, color: '#059669', label: 'Well Cap.', dash: '3,2' },
+        { value: 0.07, color: '#dc2626', label: 'Under Cap.', dash: '2,2' },
+      ] },
+    { label: 'Delinquency', value: fmtPct(latest.delinquency_ratio, 3), field: 'delinquency_ratio', color: '#dc2626', prev: prev?.delinquency_ratio, curr: latest.delinquency_ratio, invert: true,
+      thresholds: [
+        { value: 0.01, color: '#ef9f27', label: 'Watch', dash: '3,2' },
+        { value: 0.02, color: '#dc2626', label: 'Concern', dash: '2,2' },
+      ] },
+    { label: 'Loan/Share', value: fmtPct(latest.loan_to_share_ratio, 1), field: 'loan_to_share_ratio', color: '#8b5cf6', prev: prev?.loan_to_share_ratio, curr: latest.loan_to_share_ratio,
+      thresholds: [
+        { value: 0.70, color: '#ef9f27', label: 'Low', dash: '3,2' },
+        { value: 0.85, color: '#dc2626', label: 'High', dash: '2,2' },
+      ] },
+    { label: 'Efficiency', value: fmtPct(latest.efficiency_ratio, 1), field: 'efficiency_ratio', color: '#ef9f27', prev: prev?.efficiency_ratio, curr: latest.efficiency_ratio, invert: true,
+      thresholds: [
+        { value: 0.75, color: '#ef9f27', label: 'Watch', dash: '3,2' },
+        { value: 0.90, color: '#dc2626', label: 'Concern', dash: '2,2' },
+      ] },
   ];
 
   return (
@@ -182,7 +212,17 @@ function CUPulse({ cuNumber }) {
                 <span className="ms-pulse-kpi-val mono">{k.value}</span>
                 <QoQArrow current={k.curr} previous={k.prev} invert={k.invert} />
               </div>
-              <PulseKpiSparkline data={trend} field={k.field} color={k.color} />
+              <PulseKpiSparkline data={trend} field={k.field} color={k.color} thresholds={k.thresholds} />
+              {k.thresholds && (
+                <div className="ms-pulse-threshold-legend">
+                  {k.thresholds.map((t) => (
+                    <span key={t.label} className="ms-pulse-threshold-item">
+                      <span className="ms-pulse-threshold-line" style={{ borderColor: t.color }} />
+                      {t.label}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           ))}
         </div>

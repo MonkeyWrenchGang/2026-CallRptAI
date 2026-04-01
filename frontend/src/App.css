@@ -3457,6 +3457,29 @@ body {
 .ms-qoq-down { color: #dc2626; }
 .ms-qoq-flat { color: var(--text-muted); font-size: 10px; }
 
+/* Threshold legends */
+.ms-pulse-threshold-legend {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.ms-pulse-threshold-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.ms-pulse-threshold-line {
+  display: inline-block;
+  width: 10px;
+  height: 0;
+  border-top: 1.5px dashed;
+}
+
 /* Peer percentile bars */
 .ms-pulse-pctiles {
   margin-bottom: 12px;
