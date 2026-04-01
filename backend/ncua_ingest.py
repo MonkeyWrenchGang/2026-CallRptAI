@@ -108,6 +108,32 @@ FS220_MAP = {
     "ACCT_671":  "noninterest_expense_ytd",  # Total Non-Interest Expense (YTD)
     "ACCT_730":  "cash",                     # Cash & Cash Equivalents
     "ACCT_940":  "undivided_earnings",       # Undivided Earnings (retained surplus)
+    # Loan portfolio breakdown
+    "ACCT_703":  "first_mortgage_re",       # 1st Mortgage RE Loans/LOCs
+    "ACCT_386":  "other_re_loans",          # Other RE Loans/LOCs
+    "ACCT_400A": "member_business_loans",   # Net Member Business Loan Balance
+    # Investments & other assets
+    "ACCT_007":  "land_building",           # Land and Building
+    "ACCT_008":  "other_fixed_assets",      # Other Fixed Assets
+    "ACCT_009":  "other_assets",            # Other Assets
+    # Borrowings
+    "ACCT_058C": "borrowings_total",        # Total Borrowing Repurchase Transactions
+    "ACCT_011C": "notes_payable",           # Notes, Promissory Notes and Interest Payable
+    # Shares breakdown
+    "ACCT_657":  "regular_shares",          # Regular Shares
+    "ACCT_630":  "other_shares",            # All Other Shares
+    # Credit quality
+    "ACCT_719":  "allowance_ll",            # Allowance for Loan & Lease Losses
+    "ACCT_300":  "provision_ll",            # Provision for Loan & Lease Losses
+    "ACCT_550":  "chargeoffs_ytd",          # Total Loans Charged Off YTD
+    "ACCT_551":  "recoveries_ytd",          # Total Recoveries on Charged-Off Loans YTD
+    # Delinquency detail
+    "ACCT_692":  "loans_in_liquidation",    # Loans in process of liquidation
+    "ACCT_692A": "foreclosed_assets",       # Foreclosed and Repossessed Assets
+    # Income detail
+    "ACCT_100":  "gross_income",            # Total Gross Income
+    "ACCT_380":  "dividends_on_shares",     # Dividends on Shares
+    "ACCT_019":  "net_reserve_transfer",    # Net Reserve Transfer
 }
 
 # FS220A.txt columns we care about
@@ -119,6 +145,15 @@ FS220A_MAP = {
     "ACCT_350":   "interest_expense_ytd",     # Total Interest Expense (YTD)
     "ACCT_661A":  "net_income_ytd",           # Net Income/Loss (YTD)
     "ACCT_117":   "noninterest_income_ytd",   # Total Non-Interest Income (YTD)
+    # Income detail
+    "ACCT_110":  "interest_on_loans_ytd",    # Interest on Loans (gross)
+    "ACCT_120":  "investment_income_ytd",    # Income from Investments
+    "ACCT_131":  "fee_income_ytd",           # Fee Income
+    # Balance sheet detail
+    "ACCT_002":  "leases_receivable",        # Leases Receivable
+    "ACCT_014":  "total_liabilities_equity", # Total Liabilities, Shares, and Equity
+    # Subordinated debt
+    "ACCT_925A": "subordinated_debt_in_nw",  # Subordinated Debt included in Net Worth
 }
 
 # FOICU.txt columns
@@ -320,6 +355,15 @@ def parse_quarter(zip_bytes: bytes, quarter: dict) -> pd.DataFrame | None:
     total_revenue = (interest_income - interest_expense + nonint_income)
     df["efficiency_ratio"] = opex / total_revenue.replace(0, pd.NA)
 
+    # Net charge-offs
+    df["net_chargeoffs_ytd"] = df.get("chargeoffs_ytd", pd.Series(dtype=float)).fillna(0) - df.get("recoveries_ytd", pd.Series(dtype=float)).fillna(0)
+
+    # Annualise YTD income fields
+    for field in ["interest_on_loans_ytd", "investment_income_ytd", "fee_income_ytd"]:
+        src = df.get(field, pd.Series(dtype=float)).fillna(0)
+        target = field.replace("_ytd", "")
+        df[target] = src * annualise
+
     # Charter type label
     df["charter_type"] = df.get("cu_type", pd.Series(dtype=str)).map(CU_TYPE_LABELS).fillna("Credit Union")
 
@@ -375,6 +419,37 @@ CREATE TABLE IF NOT EXISTS financial_data (
     loan_to_share_ratio REAL,
     delinquency_ratio   REAL,
     efficiency_ratio    REAL,
+    -- Loan portfolio breakdown
+    first_mortgage_re       REAL,
+    other_re_loans          REAL,
+    member_business_loans   REAL,
+    -- Investments & other assets
+    land_building           REAL,
+    other_fixed_assets      REAL,
+    other_assets            REAL,
+    -- Borrowings & liabilities
+    borrowings_total        REAL,
+    notes_payable           REAL,
+    -- Shares breakdown
+    regular_shares          REAL,
+    other_shares            REAL,
+    -- Credit quality
+    allowance_ll            REAL,
+    provision_ll            REAL,
+    chargeoffs_ytd          REAL,
+    recoveries_ytd          REAL,
+    net_chargeoffs_ytd      REAL,
+    loans_in_liquidation    REAL,
+    foreclosed_assets       REAL,
+    -- Income detail
+    interest_on_loans       REAL,
+    investment_income       REAL,
+    fee_income              REAL,
+    dividends_on_shares     REAL,
+    gross_income            REAL,
+    -- Other
+    leases_receivable       REAL,
+    subordinated_debt_in_nw REAL,
     -- Classification
     camel_class         TEXT,
     UNIQUE(institution_id, report_date)
@@ -387,10 +462,60 @@ CREATE INDEX IF NOT EXISTS idx_inst_cu_number  ON institutions(cu_number);
 """
 
 
+def migrate_add_columns(conn: sqlite3.Connection) -> None:
+    """Add new columns to financial_data if they don't already exist.
+
+    SQLite's CREATE TABLE IF NOT EXISTS won't add columns to an existing table,
+    so we need ALTER TABLE for each new column.
+    """
+    new_columns = [
+        ("first_mortgage_re",       "REAL"),
+        ("other_re_loans",          "REAL"),
+        ("member_business_loans",   "REAL"),
+        ("land_building",           "REAL"),
+        ("other_fixed_assets",      "REAL"),
+        ("other_assets",            "REAL"),
+        ("borrowings_total",        "REAL"),
+        ("notes_payable",           "REAL"),
+        ("regular_shares",          "REAL"),
+        ("other_shares",            "REAL"),
+        ("allowance_ll",            "REAL"),
+        ("provision_ll",            "REAL"),
+        ("chargeoffs_ytd",          "REAL"),
+        ("recoveries_ytd",          "REAL"),
+        ("net_chargeoffs_ytd",      "REAL"),
+        ("loans_in_liquidation",    "REAL"),
+        ("foreclosed_assets",       "REAL"),
+        ("interest_on_loans",       "REAL"),
+        ("investment_income",       "REAL"),
+        ("fee_income",              "REAL"),
+        ("dividends_on_shares",     "REAL"),
+        ("gross_income",            "REAL"),
+        ("leases_receivable",       "REAL"),
+        ("subordinated_debt_in_nw", "REAL"),
+    ]
+
+    # Get existing columns
+    existing = {
+        row[1] for row in conn.execute("PRAGMA table_info(financial_data)").fetchall()
+    }
+
+    added = 0
+    for col_name, col_type in new_columns:
+        if col_name not in existing:
+            conn.execute(f"ALTER TABLE financial_data ADD COLUMN {col_name} {col_type}")
+            added += 1
+
+    if added:
+        conn.commit()
+        log.info(f"Migration: added {added} new columns to financial_data")
+
+
 def init_db(conn: sqlite3.Connection) -> None:
-    """Create tables if they don't exist."""
+    """Create tables if they don't exist, then run migrations."""
     conn.executescript(SCHEMA_SQL)
     conn.commit()
+    migrate_add_columns(conn)
     log.info("Database schema ready")
 
 
@@ -480,9 +605,20 @@ def upsert_financials(conn: sqlite3.Connection, df: pd.DataFrame,
                 noninterest_expense, net_income,
                 roa, net_interest_margin, net_worth_ratio,
                 loan_to_share_ratio, delinquency_ratio, efficiency_ratio,
+                first_mortgage_re, other_re_loans, member_business_loans,
+                land_building, other_fixed_assets, other_assets,
+                borrowings_total, notes_payable,
+                regular_shares, other_shares,
+                allowance_ll, provision_ll,
+                chargeoffs_ytd, recoveries_ytd, net_chargeoffs_ytd,
+                loans_in_liquidation, foreclosed_assets,
+                interest_on_loans, investment_income, fee_income,
+                dividends_on_shares, gross_income,
+                leases_receivable, subordinated_debt_in_nw,
                 camel_class
             ) VALUES (
-                ?,?,?,  ?,?,?,?,?,  ?,  ?,?,?,  ?,?,  ?,?,?,  ?,?,?,  ?
+                ?,?,?,  ?,?,?,?,?,  ?,  ?,?,?,  ?,?,  ?,?,?,  ?,?,?,
+                ?,?,?,  ?,?,?,  ?,?,  ?,?,  ?,?,  ?,?,?,  ?,?,  ?,?,?,  ?,?,  ?,?,  ?
             )
             ON CONFLICT(institution_id, report_date) DO UPDATE SET
                 quarter_label       = excluded.quarter_label,
@@ -503,7 +639,31 @@ def upsert_financials(conn: sqlite3.Connection, df: pd.DataFrame,
                 loan_to_share_ratio = excluded.loan_to_share_ratio,
                 delinquency_ratio   = excluded.delinquency_ratio,
                 efficiency_ratio    = excluded.efficiency_ratio,
-                camel_class         = excluded.camel_class
+                first_mortgage_re       = excluded.first_mortgage_re,
+                other_re_loans          = excluded.other_re_loans,
+                member_business_loans   = excluded.member_business_loans,
+                land_building           = excluded.land_building,
+                other_fixed_assets      = excluded.other_fixed_assets,
+                other_assets            = excluded.other_assets,
+                borrowings_total        = excluded.borrowings_total,
+                notes_payable           = excluded.notes_payable,
+                regular_shares          = excluded.regular_shares,
+                other_shares            = excluded.other_shares,
+                allowance_ll            = excluded.allowance_ll,
+                provision_ll            = excluded.provision_ll,
+                chargeoffs_ytd          = excluded.chargeoffs_ytd,
+                recoveries_ytd          = excluded.recoveries_ytd,
+                net_chargeoffs_ytd      = excluded.net_chargeoffs_ytd,
+                loans_in_liquidation    = excluded.loans_in_liquidation,
+                foreclosed_assets       = excluded.foreclosed_assets,
+                interest_on_loans       = excluded.interest_on_loans,
+                investment_income       = excluded.investment_income,
+                fee_income              = excluded.fee_income,
+                dividends_on_shares     = excluded.dividends_on_shares,
+                gross_income            = excluded.gross_income,
+                leases_receivable       = excluded.leases_receivable,
+                subordinated_debt_in_nw = excluded.subordinated_debt_in_nw,
+                camel_class             = excluded.camel_class
         """, (
             inst_id,
             g("report_date"),
@@ -525,6 +685,30 @@ def upsert_financials(conn: sqlite3.Connection, df: pd.DataFrame,
             g("loan_to_share_ratio"),
             g("delinquency_ratio"),
             g("efficiency_ratio"),
+            g("first_mortgage_re"),
+            g("other_re_loans"),
+            g("member_business_loans"),
+            g("land_building"),
+            g("other_fixed_assets"),
+            g("other_assets"),
+            g("borrowings_total"),
+            g("notes_payable"),
+            g("regular_shares"),
+            g("other_shares"),
+            g("allowance_ll"),
+            g("provision_ll"),
+            g("chargeoffs_ytd"),
+            g("recoveries_ytd"),
+            g("net_chargeoffs_ytd"),
+            g("loans_in_liquidation"),
+            g("foreclosed_assets"),
+            g("interest_on_loans"),
+            g("investment_income"),
+            g("fee_income"),
+            g("dividends_on_shares"),
+            g("gross_income"),
+            g("leases_receivable"),
+            g("subordinated_debt_in_nw"),
             g("camel_class"),
         ))
         rows_written += 1

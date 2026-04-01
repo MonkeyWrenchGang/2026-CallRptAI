@@ -57,6 +57,21 @@ U.S. credit unions (5,404 CUs, 24 quarters from 2020-Q1 through 2025-Q4,
 - total_shares (REAL) — the credit union equivalent of deposits; members' share accounts
 - total_equity (REAL) — net worth / retained earnings
 - cash (REAL)
+- first_mortgage_re (REAL) — First mortgage real estate loans/LOCs
+- other_re_loans (REAL) — Other real estate loans/LOCs
+- member_business_loans (REAL) — Net member business loan balance
+- land_building (REAL) — Land and building assets
+- other_fixed_assets (REAL) — Other fixed assets
+- other_assets (REAL) — Other assets
+- borrowings_total (REAL) — Total borrowings/repurchase transactions
+- notes_payable (REAL) — Notes, promissory notes and interest payable
+- regular_shares (REAL) — Regular share accounts
+- other_shares (REAL) — All other share accounts
+- allowance_ll (REAL) — Allowance for loan and lease losses
+- leases_receivable (REAL) — Leases receivable
+- subordinated_debt_in_nw (REAL) — Subordinated debt included in net worth
+- loans_in_liquidation (REAL) — Loans in process of liquidation
+- foreclosed_assets (REAL) — Foreclosed and repossessed assets
 
 **Membership**:
 - member_count (INTEGER) — number of members (credit unions have members, not customers)
@@ -67,6 +82,15 @@ U.S. credit unions (5,404 CUs, 24 quarters from 2020-Q1 through 2025-Q4,
 - net_interest_income (REAL) — YTD net interest income
 - noninterest_expense (REAL) — YTD operating expenses (overhead)
 - net_income (REAL) — YTD net income (annualised in this dataset)
+- interest_on_loans (REAL) — Interest on loans (gross, annualized)
+- investment_income (REAL) — Income from investments (annualized)
+- fee_income (REAL) — Fee income (annualized)
+- dividends_on_shares (REAL) — Dividends paid on shares
+- gross_income (REAL) — Total gross income
+- provision_ll (REAL) — Provision for loan and lease losses
+- chargeoffs_ytd (REAL) — Total loans charged off year-to-date
+- recoveries_ytd (REAL) — Total recoveries on charged-off loans year-to-date
+- net_chargeoffs_ytd (REAL) — Net charge-offs (chargeoffs minus recoveries)
 
 **Key Ratios** (all stored as DECIMALS — multiply by 100 to display as %):
 - roa (REAL) — Return on Assets; e.g. 0.0097 = 0.97%

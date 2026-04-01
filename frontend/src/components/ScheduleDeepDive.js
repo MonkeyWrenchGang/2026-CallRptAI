@@ -10,6 +10,12 @@ const SCHEDULES = [
       { db: 'total_loans', label: 'Total Loans & Leases' },
       { db: 'total_shares', label: 'Total Shares & Deposits' },
       { db: 'net_worth', label: 'Net Worth (Retained Earnings + Equity)' },
+      { db: 'cash', label: 'Cash & Cash Equivalents' },
+      { db: 'land_building', label: 'Land and Building' },
+      { db: 'other_fixed_assets', label: 'Other Fixed Assets' },
+      { db: 'other_assets', label: 'Other Assets' },
+      { db: 'leases_receivable', label: 'Leases Receivable' },
+      { db: 'allowance_ll', label: 'Allowance for Loan & Lease Losses' },
     ],
   },
   {
@@ -18,8 +24,15 @@ const SCHEDULES = [
     description: 'Revenue and expenses for the reporting period. Interest income, interest expense, provision for loan losses, non-interest income/expense, and net income.',
     fields: [
       { db: 'net_income', label: 'Net Income' },
+      { db: 'gross_income', label: 'Total Gross Income' },
+      { db: 'interest_on_loans', label: 'Interest on Loans (annualized)' },
+      { db: 'investment_income', label: 'Investment Income (annualized)' },
+      { db: 'fee_income', label: 'Fee Income (annualized)' },
+      { db: 'dividends_on_shares', label: 'Dividends on Shares' },
+      { db: 'provision_ll', label: 'Provision for Loan & Lease Losses' },
       { db: 'roa', label: 'Return on Assets (derived)' },
-      { db: 'nim', label: 'Net Interest Margin (derived)' },
+      { db: 'net_interest_margin', label: 'Net Interest Margin (derived)' },
+      { db: 'efficiency_ratio', label: 'Efficiency Ratio (derived)' },
     ],
   },
   {
@@ -28,6 +41,7 @@ const SCHEDULES = [
     description: 'Net worth ratio calculation, risk-based capital (for complex CUs), and PCA classification. Determines if a CU is well-capitalized, adequately capitalized, or undercapitalized.',
     fields: [
       { db: 'net_worth_ratio', label: 'Net Worth Ratio (Net Worth / Total Assets)' },
+      { db: 'subordinated_debt_in_nw', label: 'Subordinated Debt in Net Worth' },
     ],
   },
   {
@@ -42,6 +56,9 @@ const SCHEDULES = [
     description: 'Breakdown of loan portfolio by type: real estate (first mortgage, HELOCs), auto, credit card, commercial, and other consumer loans.',
     fields: [
       { db: 'total_loans', label: 'Total Loans (aggregate)' },
+      { db: 'first_mortgage_re', label: '1st Mortgage RE Loans/LOCs' },
+      { db: 'other_re_loans', label: 'Other RE Loans/LOCs' },
+      { db: 'member_business_loans', label: 'Net Member Business Loans' },
     ],
   },
   {
@@ -50,19 +67,28 @@ const SCHEDULES = [
     description: 'Loans past due by aging bucket (60-89 days, 90-179 days, 180+ days). Critical for asset quality assessment.',
     fields: [
       { db: 'delinquency_ratio', label: 'Delinquency Ratio (derived)' },
+      { db: 'loans_in_liquidation', label: 'Loans in Process of Liquidation' },
+      { db: 'foreclosed_assets', label: 'Foreclosed & Repossessed Assets' },
     ],
   },
   {
     id: 'G',
     name: 'Schedule G: Charges and Recoveries',
     description: 'Net charge-offs by loan category. Shows loan losses actually realized during the period.',
-    fields: [],
+    fields: [
+      { db: 'chargeoffs_ytd', label: 'Total Loans Charged Off YTD' },
+      { db: 'recoveries_ytd', label: 'Total Recoveries on Charged-Off Loans YTD' },
+      { db: 'net_chargeoffs_ytd', label: 'Net Charge-Offs YTD (derived)' },
+    ],
   },
   {
     id: 'H',
     name: 'Schedule H: Borrowings & Other Liabilities',
     description: 'Detail of borrowed funds, FHLB advances, subordinated debt, and other liabilities.',
-    fields: [],
+    fields: [
+      { db: 'borrowings_total', label: 'Total Borrowings/Repurchase Transactions' },
+      { db: 'notes_payable', label: 'Notes & Promissory Notes Payable' },
+    ],
   },
   {
     id: 'I',
@@ -70,6 +96,8 @@ const SCHEDULES = [
     description: 'Breakdown of share/deposit accounts by type and maturity. Regular shares, share certificates, money market, IRAs.',
     fields: [
       { db: 'total_shares', label: 'Total Shares & Deposits (aggregate)' },
+      { db: 'regular_shares', label: 'Regular Shares' },
+      { db: 'other_shares', label: 'All Other Shares' },
     ],
   },
   {
@@ -77,7 +105,7 @@ const SCHEDULES = [
     name: 'Schedule J: Membership & Demographic Info',
     description: 'Total members, potential members, and field of membership data.',
     fields: [
-      { db: 'members', label: 'Total Members' },
+      { db: 'member_count', label: 'Total Members' },
     ],
   },
 ];
